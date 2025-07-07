@@ -37,11 +37,11 @@ class Settings:
     MAX_TOKENS: int = 2000
     
     # Vector Search Configuration
-    TOP_K: int = 5
+    TOP_K: int = 3
     SIMILARITY_THRESHOLD: float = 0.3
     
     # Chunking Configuration
-    CHUNK_SIZE: int = 1000
-    CHUNK_OVERLAP: int = 200
+    CHUNK_SIZE: int = 600
+    CHUNK_OVERLAP: int = 100
 
 settings = Settings() 
