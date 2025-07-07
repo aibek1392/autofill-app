@@ -1,0 +1,1 @@
+// Background service worker for AI Autofill extension (required by Manifest V3) 
