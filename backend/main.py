@@ -5,11 +5,12 @@ from datetime import datetime
 from typing import List, Dict, Any, Optional
 from fastapi import FastAPI, File, UploadFile, HTTPException, Depends, BackgroundTasks, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
+from fastapi.responses import FileResponse, JSONResponse, HTMLResponse, StreamingResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel
 import logging
+import json
 from config import settings
 from services.document_processor import document_processor
 from services.rag_service import rag_service
@@ -362,6 +363,44 @@ async def chat_with_documents(request: ChatRequest):
     except Exception as e:
         logger.error(f"Chat request failed: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/chat/stream")
+async def chat_with_documents_stream(request: ChatRequest):
+    """Chat with user's documents using RAG with streaming response"""
+    async def generate_stream():
+        try:
+            # Search relevant documents
+            search_results = await rag_service.search_documents(
+                query=request.message,
+                user_id=request.user_id,
+                top_k=5
+            )
+            
+            if not search_results:
+                yield f"data: {json.dumps({'type': 'error', 'content': 'I could not find any relevant information in your documents to answer this question.', 'sources': [], 'context_used': 0})}\n\n"
+                return
+            
+            # Generate streaming response
+            async for chunk in rag_service.generate_streaming_response(
+                query=request.message,
+                context=search_results,
+                user_id=request.user_id
+            ):
+                yield f"data: {json.dumps(chunk)}\n\n"
+            
+        except Exception as e:
+            logger.error(f"Streaming chat request failed: {str(e)}")
+            yield f"data: {json.dumps({'type': 'error', 'content': f'I encountered an error while processing your question: {str(e)}', 'sources': [], 'context_used': 0})}\n\n"
+    
+    return StreamingResponse(
+        generate_stream(),
+        media_type="text/plain",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Content-Type": "text/plain; charset=utf-8"
+        }
+    )
 
 @app.post("/api/upload-form")
 async def upload_form(

@@ -208,7 +208,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user = null }) => {
             
             <FormFiller 
               onFormFilled={(result) => {
-                console.log('Form filled:', result)
                 loadDashboardData() // Refresh data
               }}
             />

@@ -223,8 +223,9 @@ class RAGService:
             ])
             
             # Prepare prompt
-            prompt = f"""You are an AI assistant helping with document analysis and form filling. 
-Use the following context from the user's documents to answer their question accurately.
+            prompt = f"""You are an expert AI assistant specializing in analyzing and extracting information from bank statements, invoices, and other financial statements.
+
+Use the following context from the user's financial documents to answer their question accurately.
 
 Context from user documents:
 {context_str}
@@ -232,10 +233,11 @@ Context from user documents:
 User question: {query}
 
 Instructions:
-1. Answer based primarily on the provided context
-2. If the context doesn't contain enough information, clearly state what's missing
-3. Be specific and cite which document the information comes from when possible
-4. For form filling requests, extract the exact values needed
+1. Focus on financial data such as transaction dates, amounts, payees, balances, invoice numbers, due dates, and other relevant fields.
+2. Answer based primarily on the provided context.
+3. If the context doesn't contain enough information, clearly state what's missing.
+4. Be specific and cite which document the information comes from when possible.
+5. For form filling requests, extract the exact values needed from the financial documents.
 
 Answer:"""
 
@@ -256,6 +258,82 @@ Answer:"""
         except Exception as e:
             logger.error(f"Failed to generate response: {str(e)}")
             raise
+
+    @traceable
+    async def generate_streaming_response(self, query: str, context: List[Dict[str, Any]], user_id: str):
+        """Generate streaming response using RAG with LLM"""
+        if not self.has_openai_key:
+            yield {
+                'type': 'error',
+                'content': f"I cannot process your query '{query}' because OpenAI API key is not configured. Please add your API keys to enable AI features.",
+                'sources': [],
+                'context_used': 0,
+                'user_id': user_id
+            }
+            return
+        
+        try:
+            # Prepare context string
+            context_str = "\n\n".join([
+                f"Source: {doc['filename']} (Relevance: {doc['score']:.2f})\n{doc['text']}"
+                for doc in context
+            ])
+            
+            # Prepare prompt
+            prompt = f"""You are an expert AI assistant specializing in analyzing and extracting information from bank statements, invoices, and other financial statements.
+
+Use the following context from the user's financial documents to answer their question accurately.
+
+Context from user documents:
+{context_str}
+
+User question: {query}
+
+Instructions:
+1. Focus on financial data such as transaction dates, amounts, payees, balances, invoice numbers, due dates, and other relevant fields.
+2. Answer based primarily on the provided context.
+3. If the context doesn't contain enough information, clearly state what's missing.
+4. Be specific and cite which document the information comes from when possible.
+5. For form filling requests, extract the exact values needed from the financial documents.
+
+Answer:"""
+
+            # Send metadata first
+            yield {
+                'type': 'metadata',
+                'sources': [{'filename': doc['filename'], 'score': doc['score']} for doc in context],
+                'context_used': len(context),
+                'user_id': user_id
+            }
+
+            # Generate streaming response
+            full_response = ""
+            async for chunk in self.llm.astream(prompt):
+                if chunk.content:
+                    full_response += chunk.content
+                    yield {
+                        'type': 'content',
+                        'content': chunk.content,
+                        'full_content': full_response
+                    }
+            
+            # Send completion signal
+            yield {
+                'type': 'done',
+                'full_content': full_response
+            }
+            
+            logger.info(f"Streaming response completed - user_id: {user_id}, context_docs: {len(context)}, response_length: {len(full_response)}")
+            
+        except Exception as e:
+            logger.error(f"Failed to generate streaming response: {str(e)}")
+            yield {
+                'type': 'error',
+                'content': f"I'm sorry, I encountered an error while processing your question: {str(e)}",
+                'sources': [],
+                'context_used': 0,
+                'user_id': user_id
+            }
     
     @traceable
     async def extract_form_fields(self, form_text: str, user_documents_context: str) -> Dict[str, Any]:

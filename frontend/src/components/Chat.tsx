@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Send, MessageCircle, FileText, Bot, User } from 'lucide-react'
-import { chatWithDocuments, ChatResponse } from '../lib/api'
+import { chatWithDocuments, chatWithDocumentsStream, ChatResponse } from '../lib/api'
 
 interface Message {
   id: string
@@ -12,6 +12,7 @@ interface Message {
   }>
   timestamp: Date
   isLoading?: boolean
+  isStreaming?: boolean
 }
 
 interface ChatProps {
@@ -29,6 +30,7 @@ const Chat: React.FC<ChatProps> = ({ onNewMessage }) => {
   ])
   const [inputValue, setInputValue] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [useStreaming, setUseStreaming] = useState(true)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -54,30 +56,100 @@ const Chat: React.FC<ChatProps> = ({ onNewMessage }) => {
     setInputValue('')
     setIsLoading(true)
 
-    // Add loading message
+    // Add loading/streaming message
+    const loadingMessageId = (Date.now() + 1).toString()
     const loadingMessage: Message = {
-      id: (Date.now() + 1).toString(),
+      id: loadingMessageId,
       type: 'assistant',
       content: '',
       timestamp: new Date(),
-      isLoading: true
+      isLoading: !useStreaming,
+      isStreaming: useStreaming
     }
     setMessages(prev => [...prev, loadingMessage])
 
     try {
-      const response: ChatResponse = await chatWithDocuments(inputValue)
-      
-      const assistantMessage: Message = {
-        id: (Date.now() + 2).toString(),
-        type: 'assistant',
-        content: response.answer,
-        sources: response.sources,
-        timestamp: new Date()
-      }
+      if (useStreaming) {
+        // Use streaming response
+        let fullContent = ''
+        let sources: Array<{ filename: string; score: number }> = []
+        let contextUsed = 0
 
-      // Remove loading message and add real response
-      setMessages(prev => prev.slice(0, -1).concat(assistantMessage))
-      onNewMessage?.(assistantMessage)
+        await chatWithDocumentsStream(
+          inputValue,
+          (chunk) => {
+            if (chunk.type === 'metadata') {
+              sources = chunk.sources || []
+              contextUsed = chunk.context_used || 0
+            } else if (chunk.type === 'content') {
+              fullContent = chunk.full_content || fullContent + (chunk.content || '')
+              // Update the streaming message with new content
+              setMessages(prev => prev.map(msg => 
+                msg.id === loadingMessageId 
+                  ? { ...msg, content: fullContent, isLoading: false, isStreaming: true }
+                  : msg
+              ))
+            } else if (chunk.type === 'done') {
+              // Finalize the message
+              setMessages(prev => prev.map(msg => 
+                msg.id === loadingMessageId 
+                  ? { 
+                      ...msg, 
+                      content: chunk.full_content || fullContent,
+                      sources: sources,
+                      isLoading: false,
+                      isStreaming: false
+                    }
+                  : msg
+              ))
+            } else if (chunk.type === 'error') {
+              setMessages(prev => prev.map(msg => 
+                msg.id === loadingMessageId 
+                  ? { 
+                      ...msg, 
+                      content: chunk.content || 'An error occurred while processing your request.',
+                      sources: chunk.sources || [],
+                      isLoading: false,
+                      isStreaming: false
+                    }
+                  : msg
+              ))
+            }
+          },
+          (error) => {
+            console.error('Streaming error:', error)
+            setMessages(prev => prev.map(msg => 
+              msg.id === loadingMessageId 
+                ? { 
+                    ...msg, 
+                    content: `I'm sorry, I encountered an error: ${error}`,
+                    isLoading: false,
+                    isStreaming: false
+                  }
+                : msg
+            ))
+          },
+          () => {
+            // Stream completed
+            setIsLoading(false)
+          }
+        )
+      } else {
+        // Use traditional non-streaming response
+        const response: ChatResponse = await chatWithDocuments(inputValue)
+        
+        const assistantMessage: Message = {
+          id: (Date.now() + 2).toString(),
+          type: 'assistant',
+          content: response.answer,
+          sources: response.sources,
+          timestamp: new Date()
+        }
+
+        // Remove loading message and add real response
+        setMessages(prev => prev.slice(0, -1).concat(assistantMessage))
+        onNewMessage?.(assistantMessage)
+      }
     } catch (error) {
       console.error('Chat error:', error)
       const errorMessage: Message = {
@@ -88,7 +160,9 @@ const Chat: React.FC<ChatProps> = ({ onNewMessage }) => {
       }
       setMessages(prev => prev.slice(0, -1).concat(errorMessage))
     } finally {
-      setIsLoading(false)
+      if (!useStreaming) {
+        setIsLoading(false)
+      }
     }
   }
 
@@ -111,17 +185,28 @@ const Chat: React.FC<ChatProps> = ({ onNewMessage }) => {
           <MessageCircle className="w-5 h-5 text-primary-600 mr-2" />
           <h3 className="font-medium text-gray-900">Document Chat</h3>
         </div>
-        <button
-          onClick={() => setMessages([{
-            id: '1',
-            type: 'assistant',
-            content: "Hi! I'm your AI assistant. I can help you find information from your uploaded documents and answer questions about them. What would you like to know?",
-            timestamp: new Date()
-          }])}
-          className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded border"
-        >
-          Clear Chat
-        </button>
+        <div className="flex items-center space-x-2">
+          <label className="flex items-center space-x-2 text-sm">
+            <input
+              type="checkbox"
+              checked={useStreaming}
+              onChange={(e) => setUseStreaming(e.target.checked)}
+              className="rounded border-gray-300"
+            />
+            <span className="text-gray-600">Streaming</span>
+          </label>
+          <button
+            onClick={() => setMessages([{
+              id: '1',
+              type: 'assistant',
+              content: "Hi! I'm your AI assistant. I can help you find information from your uploaded documents and answer questions about them. What would you like to know?",
+              timestamp: new Date()
+            }])}
+            className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded border"
+          >
+            Clear Chat
+          </button>
+        </div>
       </div>
 
       {/* Messages */}
@@ -176,6 +261,14 @@ const Chat: React.FC<ChatProps> = ({ onNewMessage }) => {
                 ) : (
                   <>
                     <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                    
+                    {/* Streaming indicator */}
+                    {message.isStreaming && (
+                      <div className="flex items-center space-x-2 mt-2">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                        <span className="text-xs text-gray-500">Streaming...</span>
+                      </div>
+                    )}
                     
                     {/* Sources */}
                     {message.sources && message.sources.length > 0 && (

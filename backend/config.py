@@ -34,14 +34,14 @@ class Settings:
     EMBEDDING_MODEL: str = "text-embedding-ada-002"
     CHAT_MODEL: str = "gpt-3.5-turbo"
     TEMPERATURE: float = 0.1
-    MAX_TOKENS: int = 2000
+    MAX_TOKENS: int = 800
     
     # Vector Search Configuration
-    TOP_K: int = 3
-    SIMILARITY_THRESHOLD: float = 0.3
+    TOP_K: int = 2
+    SIMILARITY_THRESHOLD: float = 0.5
     
     # Chunking Configuration
-    CHUNK_SIZE: int = 600
+    CHUNK_SIZE: int = 800
     CHUNK_OVERLAP: int = 100
 
 settings = Settings() 
