@@ -3,6 +3,7 @@ import { User } from '@supabase/supabase-js'
 import { supabase } from '../lib'
 import { getUserStats, getUserDocuments, getFilledForms, UserStats, Document } from '../lib/api'
 import FileUpload from '../components/FileUpload'
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import Chat from '../components/Chat'
 import FormFiller from '../components/FormFiller'
 import WebFormAutofill from '../components/WebFormAutofill'

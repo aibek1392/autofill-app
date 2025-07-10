@@ -50,7 +50,9 @@ const WebFormAutofill: React.FC<WebFormAutofillProps> = ({ className = '' }) => 
   const [isGeneratingAutofill, setIsGeneratingAutofill] = useState(false)
   const [formAnalysis, setFormAnalysis] = useState<FormAnalysis | null>(null)
   const [autofillResult, setAutofillResult] = useState<AutofillResult | null>(null)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [bookmarklet, setBookmarklet] = useState<BookmarkletResponse | null>(null)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [isLoadingBookmarklet, setIsLoadingBookmarklet] = useState(false)
   const [copiedBookmarklet, setCopiedBookmarklet] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -428,6 +430,7 @@ const WebFormAutofill: React.FC<WebFormAutofillProps> = ({ className = '' }) => 
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const generateWebAutofill = async () => {
     setIsLoading(true);
     setError(null);
@@ -459,6 +462,7 @@ const WebFormAutofill: React.FC<WebFormAutofillProps> = ({ className = '' }) => 
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const getConfidenceColor = (score: number) => {
     if (score >= 0.8) return 'text-green-600'
     if (score >= 0.6) return 'text-yellow-600'

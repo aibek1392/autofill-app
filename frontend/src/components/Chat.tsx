@@ -73,14 +73,12 @@ const Chat: React.FC<ChatProps> = ({ onNewMessage }) => {
         // Use streaming response
         let fullContent = ''
         let sources: Array<{ filename: string; score: number }> = []
-        let contextUsed = 0
 
         await chatWithDocumentsStream(
           inputValue,
           (chunk) => {
             if (chunk.type === 'metadata') {
               sources = chunk.sources || []
-              contextUsed = chunk.context_used || 0
             } else if (chunk.type === 'content') {
               fullContent = chunk.full_content || fullContent + (chunk.content || '')
               // Update the streaming message with new content
