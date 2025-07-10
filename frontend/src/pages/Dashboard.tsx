@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { User } from '@supabase/supabase-js'
-import { supabase } from '../lib/supabase'
+import { supabase } from '../lib'
 import { getUserStats, getUserDocuments, getFilledForms, UserStats, Document } from '../lib/api'
 import FileUpload from '../components/FileUpload'
 import Chat from '../components/Chat'
