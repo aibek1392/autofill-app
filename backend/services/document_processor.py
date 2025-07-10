@@ -11,7 +11,7 @@ from io import BytesIO
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from config import settings
 import re
-from .simple_ai_extractor import simple_ai_extractor
+# from .simple_ai_extractor import simple_ai_extractor
 
 logger = logging.getLogger(__name__)
 
@@ -295,13 +295,17 @@ class DocumentProcessor:
         """Extract structured field data from text using AI"""
         try:
             # Use simple AI extractor for intelligent field extraction
-            extracted_fields = await simple_ai_extractor.extract_structured_fields(text, filename)
+            # extracted_fields = await simple_ai_extractor.extract_structured_fields(text, filename)
             
-            logger.info(f"AI structured fields extracted - filename: {filename}, field_types: {len(extracted_fields)}")
+            # Temporarily use regex extraction until AI extractor is fixed
+            logger.info("Using regex extraction temporarily - AI extractor disabled")
+            extracted_fields = self.extract_structured_fields_regex(text)
+            
+            logger.info(f"Structured fields extracted - filename: {filename}, field_types: {len(extracted_fields)}")
             return extracted_fields
             
         except Exception as e:
-            logger.error(f"Failed to extract structured fields with AI: {str(e)}")
+            logger.error(f"Failed to extract structured fields: {str(e)}")
             # Fallback to regex extraction if AI fails
             logger.info("Falling back to regex extraction...")
             return self.extract_structured_fields_regex(text)
