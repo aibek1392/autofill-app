@@ -2,6 +2,7 @@
 
 **DocuChat** is an AI-powered document chat assistant that allows you to upload documents and have intelligent conversations about their content. Perfect for quickly extracting information from PDFs, invoices, bank statements, and other documents.
 
+
 ## ✨ Features
 
 - 📄 **Document Upload**: Support for PDF and image files
