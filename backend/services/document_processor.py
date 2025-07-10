@@ -11,7 +11,8 @@ from io import BytesIO
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from config import settings
 import re
-from services.simple_ai_extractor import simple_ai_extractor
+from .simple_ai_extractor import simple_ai_extractor
+
 logger = logging.getLogger(__name__)
 
 class DocumentProcessor:
