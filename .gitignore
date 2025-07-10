@@ -51,6 +51,9 @@ wheels/
 *.egg
 MANIFEST
 
+# Frontend lib directory (allow it)
+!frontend/src/lib/
+
 # Virtual environments
 venv/
 env/
@@ -173,3 +176,4 @@ dmypy.json
 # Local development
 .local/
 local/
+#fixed
