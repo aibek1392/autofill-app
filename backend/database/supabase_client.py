@@ -15,7 +15,7 @@ class SupabaseClient:
         
         if self.has_supabase_credentials:
             try:
-                # Initialize without any extra parameters that might cause issues
+                # Initialize with explicit parameters only (no extra kwargs that might cause proxy issues)
                 self.client: Client = create_client(
                     supabase_url=settings.SUPABASE_URL,
                     supabase_key=settings.SUPABASE_SERVICE_ROLE_KEY
@@ -28,6 +28,40 @@ class SupabaseClient:
                     logger.warning("Supabase client creation returned None")
                     self.has_supabase_credentials = False
                     
+            except TypeError as e:
+                if "proxy" in str(e):
+                    logger.warning(f"Supabase proxy parameter issue: {str(e)}. Trying alternative initialization...")
+                    # Try with older initialization method if proxy parameter is the issue
+                    try:
+                        import os
+                        # Temporarily clear any proxy-related environment variables
+                        proxy_vars = ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy']
+                        original_values = {}
+                        for var in proxy_vars:
+                            if var in os.environ:
+                                original_values[var] = os.environ[var]
+                                del os.environ[var]
+                        
+                        # Try again without proxy vars
+                        self.client: Client = create_client(
+                            supabase_url=settings.SUPABASE_URL,
+                            supabase_key=settings.SUPABASE_SERVICE_ROLE_KEY
+                        )
+                        
+                        # Restore original environment variables
+                        for var, value in original_values.items():
+                            os.environ[var] = value
+                        
+                        logger.info("Supabase client initialized successfully (proxy workaround)")
+                        
+                    except Exception as e2:
+                        logger.warning(f"Supabase initialization failed even with proxy workaround: {str(e2)}. Database features will be limited.")
+                        self.client = None
+                        self.has_supabase_credentials = False
+                else:
+                    logger.warning(f"Supabase initialization failed: {str(e)}. Database features will be limited.")
+                    self.client = None
+                    self.has_supabase_credentials = False
             except Exception as e:
                 logger.warning(f"Supabase initialization failed: {str(e)}. Database features will be limited.")
                 self.client = None
