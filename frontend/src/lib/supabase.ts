@@ -4,17 +4,32 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = process.env.REACT_APP_SUPABASE_URL || 'https://placeholder.supabase.co'
 const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY || 'placeholder-key'
 
+// Check if we have real credentials
+const hasRealCredentials = supabaseUrl !== 'https://placeholder.supabase.co' && supabaseAnonKey !== 'placeholder-key'
+
 // Create client with fallback values to prevent build errors
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export const supabase = hasRealCredentials ? createClient(supabaseUrl, supabaseAnonKey) : null
 
 // Log status for debugging
 if (process.env.NODE_ENV === 'development') {
-  const hasRealCredentials = process.env.REACT_APP_SUPABASE_URL && process.env.REACT_APP_SUPABASE_ANON_KEY
-  console.warn(
-    hasRealCredentials 
-      ? 'Supabase client initialized successfully' 
-      : 'Supabase client initialized with placeholder values - add REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_ANON_KEY to frontend/.env file'
-  )
+  console.log('=== Supabase Client Debug ===')
+  console.log('REACT_APP_SUPABASE_URL:', process.env.REACT_APP_SUPABASE_URL || 'NOT SET')
+  console.log('REACT_APP_SUPABASE_ANON_KEY:', process.env.REACT_APP_SUPABASE_ANON_KEY ? 'SET' : 'NOT SET')
+  console.log('Has real credentials:', hasRealCredentials)
+  console.log('Supabase client created:', !!supabase)
+  
+  if (hasRealCredentials) {
+    console.log('✅ Supabase client initialized successfully')
+  } else {
+    console.warn('❌ Supabase client NOT initialized - using placeholder values')
+    console.warn('Add REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_ANON_KEY to frontend/.env file')
+  }
+}
+
+// Make supabase available on window for debugging (development only)
+if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
+  (window as any).supabase = supabase
+  console.log('Supabase client attached to window.supabase for debugging')
 }
 
 export type Database = {

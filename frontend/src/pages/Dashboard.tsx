@@ -8,6 +8,7 @@ import Chat from '../components/Chat'
 import FormFiller from '../components/FormFiller'
 import WebFormAutofill from '../components/WebFormAutofill'
 import ResizableChatPanel from '../components/ResizableChatPanel'
+import AuthStatus from '../components/AuthStatus'
 import { 
   LogOut, 
   Upload, 
@@ -58,6 +59,15 @@ const Dashboard: React.FC<DashboardProps> = ({ user = null }) => {
       setFilledForms(formsData.filled_forms)
     } catch (error) {
       console.error('Failed to load dashboard data:', error)
+      
+      // Check if it's an authentication error
+      if (error instanceof Error && error.message.includes('User not authenticated')) {
+        // If user is not authenticated, show a message but don't crash
+        console.warn('User not authenticated, some features may not work')
+        setStats(null)
+        setDocuments([])
+        setFilledForms([])
+      }
     } finally {
       setLoading(false)
     }
@@ -110,6 +120,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user = null }) => {
                 Upload your PDF, JPG, JPEG, or PNG documents to make them searchable and use them for form autofill.
               </p>
             </div>
+            
+            <AuthStatus />
             
             <FileUpload 
               onUploadComplete={(files) => {

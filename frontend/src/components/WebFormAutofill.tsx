@@ -69,7 +69,7 @@ const WebFormAutofill: React.FC<WebFormAutofillProps> = ({ className = '' }) => 
     setIsAnalyzing(true)
     setError(null)
     try {
-      const response = await fetch('http://localhost:8000/api/analyze-web-form', {
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'https://autofill-backend-a64u.onrender.com'}/api/analyze-web-form`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -101,7 +101,7 @@ const WebFormAutofill: React.FC<WebFormAutofillProps> = ({ className = '' }) => 
     setError(null)
     try {
       const userId = await getUserId()
-      const response = await fetch('http://localhost:8000/api/generate-web-autofill', {
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'https://autofill-backend-a64u.onrender.com'}/api/generate-web-autofill`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -152,22 +152,22 @@ const WebFormAutofill: React.FC<WebFormAutofillProps> = ({ className = '' }) => 
   }
 
   const generateBookmarkletScript = () => {
-    const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000'
+    const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://autofill-backend-a64u.onrender.com'
     
     return `
 (function() {
   // Content script for form autofill
   const API_BASE = '${API_BASE_URL}';
   
-  // Get user ID from authentication or use demo fallback
+  // Get user ID from authentication
   async function getUserId() {
     // Try to get from Supabase auth if available
     if (window.supabase) {
       const { data: { user } } = await window.supabase.auth.getUser();
       if (user?.id) return user.id;
     }
-    // Fallback to demo user
-    return '550e8400-e29b-41d4-a716-446655440000';
+    // Throw error if no authenticated user
+    throw new Error('User not authenticated. Please log in to continue.');
   }
   
   // Create autofill UI
@@ -417,7 +417,7 @@ const WebFormAutofill: React.FC<WebFormAutofillProps> = ({ className = '' }) => 
       ];
 
       const userId = await getUserId();
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/match-fields-bulk`, {
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'https://autofill-backend-a64u.onrender.com'}/api/match-fields-bulk`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -450,15 +450,16 @@ const WebFormAutofill: React.FC<WebFormAutofillProps> = ({ className = '' }) => 
     setError(null);
     
     try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/generate-web-autofill`, {
+      const userId = await getUserId();
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'https://autofill-backend-a64u.onrender.com'}/api/generate-web-autofill`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-ID': localStorage.getItem('user_id') || '550e8400-e29b-41d4-a716-446655440000'
+          'X-User-ID': userId
         },
         body: JSON.stringify({
           url: url,
-          user_id: localStorage.getItem('user_id') || '550e8400-e29b-41d4-a716-446655440000'
+          user_id: userId
         })
       });
 

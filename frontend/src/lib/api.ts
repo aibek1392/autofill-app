@@ -1,7 +1,7 @@
 import axios from 'axios'
 import { supabase } from './supabase'
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000'
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://autofill-backend-a64u.onrender.com'
 
 // Helper function to get user ID consistently
 export const getUserId = async (): Promise<string> => {
@@ -11,8 +11,8 @@ export const getUserId = async (): Promise<string> => {
       return user.id
     }
   }
-  // Only use demo user as fallback when no authentication is available
-  return '550e8400-e29b-41d4-a716-446655440000'
+  // Throw error if no authenticated user - don't use hardcoded fallback
+  throw new Error('User not authenticated. Please set up Supabase authentication in your .env file and log in.')
 }
 
 // Create axios instance with default config

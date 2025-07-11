@@ -43,6 +43,9 @@ class SupabaseClient:
             return {}
             
         try:
+            # Add detailed logging for debugging
+            logger.info(f"Creating document record with user_id: '{user_id}', filename: '{filename}', type: '{file_type}', size: {file_size}")
+            
             document_data = {
                 'user_id': user_id,
                 'filename': filename,
@@ -56,12 +59,25 @@ class SupabaseClient:
             if doc_id:
                 document_data['doc_id'] = doc_id
             
+            # Log the exact data being inserted
+            logger.info(f"Inserting document data: {document_data}")
+            
             result = self.client.table('uploaded_documents').insert(document_data).execute()
             
-            logger.info(f"Document record created - user_id: {user_id}, filename: {filename}")
-            return result.data[0] if result.data else {}
+            # Log the result
+            logger.info(f"Insert result: {result.data}")
+            
+            if result.data and len(result.data) > 0:
+                created_doc = result.data[0]
+                logger.info(f"Document record created successfully - doc_id: {created_doc.get('doc_id')}, user_id: {created_doc.get('user_id')}, filename: {filename}")
+                return created_doc
+            else:
+                logger.warning(f"Document insert returned empty result for user_id: {user_id}, filename: {filename}")
+                return {}
+                
         except Exception as e:
             logger.error(f"Failed to create document record: {str(e)}")
+            logger.error(f"Error details - user_id: '{user_id}', filename: '{filename}', type: '{file_type}', size: {file_size}")
             raise
     
     async def get_user_documents(self, user_id: str) -> List[Dict[str, Any]]:

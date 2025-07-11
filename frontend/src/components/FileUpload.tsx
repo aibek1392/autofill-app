@@ -25,42 +25,34 @@ const FileUpload: React.FC<FileUploadProps> = ({
   const [files, setFiles] = useState<FileWithStatus[]>([])
   const [isUploading, setIsUploading] = useState(false)
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
+  const [error, setError] = useState<string | null>(null)
 
-  const onDrop = useCallback((acceptedFiles: File[], rejectedFiles: any[]) => {
-    // Clear previous upload results when new files are added
-    setUploadedFiles([])
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    if (acceptedFiles.length === 0) return
     
-    // Add accepted files to state
-    const newFiles: FileWithStatus[] = acceptedFiles.map(file => {
-      const fileWithStatus = file as FileWithStatus
-      fileWithStatus.id = Math.random().toString(36).substr(2, 9)
-      fileWithStatus.status = 'pending'
+    setIsUploading(true)
+    setError(null)
+    
+    try {
+      const result = await uploadDocuments(acceptedFiles)
       
-      // Ensure file has valid properties
-      if (!file.name) {
-        console.warn('File missing name property:', file)
+      if (result.files && result.files.length > 0) {
+        setUploadedFiles(result.files)
+        onUploadComplete?.(result.files)
       }
-      if (file.size === undefined || file.size === null) {
-        console.warn('File missing size property:', file.name)
-      }
+    } catch (error) {
+      console.error('Upload failed:', error)
       
-      return fileWithStatus
-    })
-
-    setFiles(prev => [...prev, ...newFiles])
-
-    // Handle rejected files
-    if (rejectedFiles.length > 0) {
-      const rejectedFileErrors: FileWithStatus[] = rejectedFiles.map(({ file, errors }) => {
-        const fileWithStatus = file as FileWithStatus
-        fileWithStatus.id = Math.random().toString(36).substr(2, 9)
-        fileWithStatus.status = 'error'
-        fileWithStatus.error = errors.map((e: any) => e.message).join(', ')
-        return fileWithStatus
-      })
-      setFiles(prev => [...prev, ...rejectedFileErrors])
+      // Check if it's an authentication error
+      if (error instanceof Error && error.message.includes('User not authenticated')) {
+        setError('Please log in to upload documents. You need to be authenticated to use this feature.')
+      } else {
+        setError(error instanceof Error ? error.message : 'Upload failed')
+      }
+    } finally {
+      setIsUploading(false)
     }
-  }, [])
+  }, [onUploadComplete])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
