@@ -7,19 +7,29 @@ logger = logging.getLogger(__name__)
 
 class SupabaseClient:
     def __init__(self):
+        # Debug logging for environment variables
+        logger.info(f"Supabase URL present: {bool(settings.SUPABASE_URL)}")
+        logger.info(f"Supabase ANON KEY present: {bool(settings.SUPABASE_ANON_KEY)}")
+        logger.info(f"Supabase SERVICE ROLE KEY present: {bool(settings.SUPABASE_SERVICE_ROLE_KEY)}")
+        
         # Check if Supabase credentials are available
         self.has_supabase_credentials = bool(
             settings.SUPABASE_URL and settings.SUPABASE_URL != "" and
             settings.SUPABASE_ANON_KEY and settings.SUPABASE_ANON_KEY != ""
         )
         
+        logger.info(f"Has Supabase credentials: {self.has_supabase_credentials}")
+        
         # Also check if we have service role key for admin operations
         self.has_service_role = bool(
             settings.SUPABASE_SERVICE_ROLE_KEY and settings.SUPABASE_SERVICE_ROLE_KEY != ""
         )
         
+        logger.info(f"Has service role key: {self.has_service_role}")
+        
         if self.has_supabase_credentials:
             try:
+                logger.info("Attempting to initialize Supabase client...")
                 # Initialize with ANON KEY for JWT authentication (not service role)
                 self.client: Client = create_client(
                     supabase_url=settings.SUPABASE_URL,
@@ -28,11 +38,13 @@ class SupabaseClient:
                 
                 # Create separate admin client with service role for admin operations
                 if self.has_service_role:
+                    logger.info("Initializing admin client with service role...")
                     self.admin_client: Client = create_client(
                         supabase_url=settings.SUPABASE_URL,
                         supabase_key=settings.SUPABASE_SERVICE_ROLE_KEY
                     )
                 else:
+                    logger.warning("Service role key not available - admin operations will be limited")
                     self.admin_client = None
                 
                 # Simple validation - just check if client was created

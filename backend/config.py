@@ -1,8 +1,18 @@
 import os
 from typing import List
 from dotenv import load_dotenv
+import logging
+
+# Configure logging for config loading
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 load_dotenv()
+
+# Debug: Check if .env file exists
+env_file_path = os.path.join(os.getcwd(), '.env')
+logger.info(f"Looking for .env file at: {env_file_path}")
+logger.info(f".env file exists: {os.path.exists(env_file_path)}")
 
 class Settings:
     # OpenAI Configuration
@@ -44,4 +54,13 @@ class Settings:
     CHUNK_SIZE: int = 400
     CHUNK_OVERLAP: int = 100
 
-settings = Settings() 
+settings = Settings()
+
+# Debug logging for critical environment variables
+logger.info("=== Environment Variables Debug ===")
+logger.info(f"SUPABASE_URL set: {bool(settings.SUPABASE_URL)}")
+logger.info(f"SUPABASE_ANON_KEY set: {bool(settings.SUPABASE_ANON_KEY)}")
+logger.info(f"SUPABASE_SERVICE_ROLE_KEY set: {bool(settings.SUPABASE_SERVICE_ROLE_KEY)}")
+logger.info(f"OPENAI_API_KEY set: {bool(settings.OPENAI_API_KEY)}")
+logger.info(f"PINECONE_API_KEY set: {bool(settings.PINECONE_API_KEY)}")
+logger.info("=== End Environment Variables Debug ===") 
