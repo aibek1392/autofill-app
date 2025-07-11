@@ -171,7 +171,8 @@ async def process_document_background(file_path: str, filename: str, user_id: st
 async def upload_documents(
     background_tasks: BackgroundTasks,
     files: List[UploadFile] = File(...),
-    user_id: Optional[str] = Header(None, alias="X-User-ID")
+    user_id: Optional[str] = Header(None, alias="X-User-ID"),
+    authorization: Optional[str] = Header(None)
 ):
     """Upload and process documents"""
     try:
@@ -235,15 +236,47 @@ async def upload_documents(
             doc_record_created = False
             try:
                 if supabase_client.has_supabase_credentials:
-                    doc_record = await supabase_client.create_user_document(
-                        user_id=user_id,
-                        filename=file.filename,
-                        file_type=file.content_type or "application/octet-stream",
-                        file_size=actual_size,
-                        doc_id=file_id
-                    )
-                    logger.info(f"Document record created in Supabase - user_id: {user_id}, filename: {file.filename}")
-                    doc_record_created = True
+                    # Extract JWT token from Authorization header
+                    access_token = None
+                    if authorization and authorization.startswith("Bearer "):
+                        access_token = authorization[7:]  # Remove "Bearer " prefix
+                    
+                    # Try JWT authentication first, fallback to service role
+                    if access_token:
+                        try:
+                            doc_record = await supabase_client.create_user_document_with_auth(
+                                user_id=user_id,
+                                filename=file.filename,
+                                file_type=file.content_type or "application/octet-stream",
+                                file_size=actual_size,
+                                access_token=access_token,
+                                doc_id=file_id
+                            )
+                            logger.info(f"Document record created in Supabase with JWT - user_id: {user_id}, filename: {file.filename}")
+                            doc_record_created = True
+                        except Exception as jwt_error:
+                            logger.warning(f"JWT authentication failed, trying service role: {str(jwt_error)}")
+                            # Fallback to service role
+                            doc_record = await supabase_client.create_user_document(
+                                user_id=user_id,
+                                filename=file.filename,
+                                file_type=file.content_type or "application/octet-stream",
+                                file_size=actual_size,
+                                doc_id=file_id
+                            )
+                            logger.info(f"Document record created in Supabase with service role - user_id: {user_id}, filename: {file.filename}")
+                            doc_record_created = True
+                    else:
+                        # No JWT token, use service role
+                        doc_record = await supabase_client.create_user_document(
+                            user_id=user_id,
+                            filename=file.filename,
+                            file_type=file.content_type or "application/octet-stream",
+                            file_size=actual_size,
+                            doc_id=file_id
+                        )
+                        logger.info(f"Document record created in Supabase with service role - user_id: {user_id}, filename: {file.filename}")
+                        doc_record_created = True
                 else:
                     logger.warning("Supabase not available, will use demo storage")
             except Exception as e:
