@@ -26,6 +26,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Constants
+DEMO_USER_ID = "550e8400-e29b-41d4-a716-446655440000"  # Only used as fallback when no auth available
+
 # Create FastAPI app
 app = FastAPI(
     title="AI Autofill Form App",
@@ -179,7 +182,7 @@ async def upload_documents(
         
         # Use demo user if no user_id provided
         if not user_id:
-            user_id = "550e8400-e29b-41d4-a716-446655440000"
+            user_id = DEMO_USER_ID
         
         uploaded_files = []
         
@@ -304,7 +307,7 @@ async def get_user_documents(user_id: Optional[str] = Header(None, alias="X-User
     """Get all documents for the current user"""
     try:
         if not user_id:
-            user_id = "550e8400-e29b-41d4-a716-446655440000"
+            user_id = DEMO_USER_ID
         
         documents = []
         
@@ -471,7 +474,7 @@ async def get_filled_forms(user_id: Optional[str] = Header(None, alias="X-User-I
     """Get all filled forms for the current user"""
     try:
         if not user_id:
-            user_id = "550e8400-e29b-41d4-a716-446655440000"
+            user_id = DEMO_USER_ID
             
         filled_forms = []
         
@@ -514,7 +517,7 @@ async def get_user_stats(user_id: Optional[str] = Header(None, alias="X-User-ID"
     """Get user statistics"""
     try:
         if not user_id:
-            user_id = "550e8400-e29b-41d4-a716-446655440000"
+            user_id = DEMO_USER_ID
         
         documents = []
         filled_forms = []
@@ -577,7 +580,7 @@ async def generate_web_autofill(
     """Generate autofill data for web form"""
     try:
         if not user_id:
-            user_id = request.user_id or "550e8400-e29b-41d4-a716-446655440000"
+            user_id = request.user_id or DEMO_USER_ID
         
         # Analyze the form first
         form_analysis = await web_form_service.analyze_web_form(request.url, request.html_content)
@@ -605,7 +608,7 @@ async def match_form_field(
     """Match a single form field to user data using semantic search"""
     try:
         if not user_id:
-            user_id = request.user_id or "550e8400-e29b-41d4-a716-446655440000"
+            user_id = request.user_id or DEMO_USER_ID
         
         # Create comprehensive field context
         field_context = f"{request.field_context} {request.placeholder}".strip()
@@ -659,7 +662,7 @@ async def match_fields_bulk(
     """Match multiple form fields at once for better performance"""
     try:
         if not user_id:
-            user_id = request.user_id or "550e8400-e29b-41d4-a716-446655440000"
+            user_id = request.user_id or DEMO_USER_ID
         
         matched_fields = {}
         
@@ -702,7 +705,7 @@ async def match_fields_bulk(
 async def bookmarklet_page():
     """Display the bookmarklet in a user-friendly HTML page"""
     try:
-        user_id = "550e8400-e29b-41d4-a716-446655440000"
+        user_id = DEMO_USER_ID
         
         # Generate the smart bookmarklet (complete JavaScript)
         smart_bookmarklet = f"""javascript:(function(){{
@@ -1068,7 +1071,7 @@ async def generate_smart_bookmarklet(user_id: Optional[str] = Header(None, alias
     """Generate a smart bookmarklet that uses AI-extracted data from user documents"""
     try:
         if not user_id:
-            user_id = "550e8400-e29b-41d4-a716-446655440000"
+            user_id = DEMO_USER_ID
         
         # Create an intelligent bookmarklet that calls the field matching API
         smart_bookmarklet = f"""javascript:(function(){{

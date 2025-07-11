@@ -1,7 +1,9 @@
-import React, { useState } from 'react'
-import { Globe, Copy, CheckCircle, ExternalLink, Code, Bookmark } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { Copy, Check, ExternalLink, Loader2, AlertCircle, CheckCircle, Globe, Code, Bookmark } from 'lucide-react'
+import { getUserId } from '../lib/api'  // Import the centralized getUserId function
 
 interface WebFormAutofillProps {
+  onClose?: () => void
   className?: string
 }
 
@@ -98,11 +100,12 @@ const WebFormAutofill: React.FC<WebFormAutofillProps> = ({ className = '' }) => 
     setIsGeneratingAutofill(true)
     setError(null)
     try {
+      const userId = await getUserId()
       const response = await fetch('http://localhost:8000/api/generate-web-autofill', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-ID': '550e8400-e29b-41d4-a716-446655440000'
+          'X-User-ID': userId
         },
         body: JSON.stringify({ url })
       })
@@ -155,7 +158,17 @@ const WebFormAutofill: React.FC<WebFormAutofillProps> = ({ className = '' }) => 
 (function() {
   // Content script for form autofill
   const API_BASE = '${API_BASE_URL}';
-      const USER_ID = localStorage.getItem('user_id') || '550e8400-e29b-41d4-a716-446655440000';
+  
+  // Get user ID from authentication or use demo fallback
+  async function getUserId() {
+    // Try to get from Supabase auth if available
+    if (window.supabase) {
+      const { data: { user } } = await window.supabase.auth.getUser();
+      if (user?.id) return user.id;
+    }
+    // Fallback to demo user
+    return '550e8400-e29b-41d4-a716-446655440000';
+  }
   
   // Create autofill UI
   function createAutofillUI() {
@@ -296,11 +309,11 @@ const WebFormAutofill: React.FC<WebFormAutofillProps> = ({ className = '' }) => 
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-ID': USER_ID
+          'X-User-ID': await getUserId()
         },
         body: JSON.stringify({
           fields: fieldsForMatching,
-          user_id: USER_ID
+          user_id: await getUserId()
         })
       });
       
@@ -403,15 +416,16 @@ const WebFormAutofill: React.FC<WebFormAutofillProps> = ({ className = '' }) => 
         { name: 'cover_letter', label: 'Cover Letter', type: 'textarea', context: 'Tell us why you are interested in this role' }
       ];
 
+      const userId = await getUserId();
       const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/match-fields-bulk`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-ID': localStorage.getItem('user_id') || '550e8400-e29b-41d4-a716-446655440000'
+          'X-User-ID': userId
         },
         body: JSON.stringify({
           fields: sampleFields,
-          user_id: localStorage.getItem('user_id') || '550e8400-e29b-41d4-a716-446655440000'
+          user_id: userId
         })
       });
 

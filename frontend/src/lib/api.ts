@@ -4,11 +4,14 @@ import { supabase } from './supabase'
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000'
 
 // Helper function to get user ID consistently
-const getUserId = async (): Promise<string> => {
+export const getUserId = async (): Promise<string> => {
   if (supabase) {
     const { data: { user } } = await supabase.auth.getUser()
-    return user?.id || '550e8400-e29b-41d4-a716-446655440000'
+    if (user?.id) {
+      return user.id
+    }
   }
+  // Only use demo user as fallback when no authentication is available
   return '550e8400-e29b-41d4-a716-446655440000'
 }
 
@@ -114,12 +117,8 @@ export const uploadDocuments = async (files: FileList | File[]): Promise<{ files
     formData.append('files', file)
   })
 
-  // Get user ID for demo mode
-  let userId = '550e8400-e29b-41d4-a716-446655440000'
-  if (supabase) {
-    const { data: { user } } = await supabase.auth.getUser()
-    userId = user?.id || '550e8400-e29b-41d4-a716-446655440000'
-  }
+  // Get authenticated user ID
+  const userId = await getUserId()
   
   console.log('Uploading files:', {
     fileCount: fileArray.length,
@@ -139,12 +138,8 @@ export const uploadDocuments = async (files: FileList | File[]): Promise<{ files
 }
 
 export const getUserDocuments = async (): Promise<{ documents: Document[] }> => {
-  // Get user ID for demo mode
-  let userId = '550e8400-e29b-41d4-a716-446655440000'
-  if (supabase) {
-    const { data: { user } } = await supabase.auth.getUser()
-    userId = user?.id || '550e8400-e29b-41d4-a716-446655440000'
-  }
+  // Get authenticated user ID
+  const userId = await getUserId()
 
   const response = await api.get('/api/documents', {
     headers: {
@@ -256,12 +251,8 @@ export const uploadForm = async (file: File): Promise<FormFillResult> => {
 }
 
 export const getFilledForms = async (): Promise<{ filled_forms: any[] }> => {
-  // Get user ID for demo mode
-  let userId = '550e8400-e29b-41d4-a716-446655440000'
-  if (supabase) {
-    const { data: { user } } = await supabase.auth.getUser()
-    userId = user?.id || '550e8400-e29b-41d4-a716-446655440000'
-  }
+  // Get authenticated user ID
+  const userId = await getUserId()
 
   const response = await api.get('/api/filled-forms', {
     headers: {
@@ -277,12 +268,8 @@ export const getMissingFieldSuggestions = async (missingFields: string[]): Promi
 }
 
 export const getUserStats = async (): Promise<UserStats> => {
-  // Get user ID for demo mode
-  let userId = '550e8400-e29b-41d4-a716-446655440000'
-  if (supabase) {
-    const { data: { user } } = await supabase.auth.getUser()
-    userId = user?.id || '550e8400-e29b-41d4-a716-446655440000'
-  }
+  // Get authenticated user ID
+  const userId = await getUserId()
 
   const response = await api.get('/api/stats', {
     headers: {
