@@ -54,53 +54,78 @@ class SupabaseClient:
                     logger.warning("Supabase client creation returned None")
                     self.has_supabase_credentials = False
                     
-            except TypeError as e:
-                if "proxy" in str(e):
-                    logger.warning(f"Supabase proxy parameter issue: {str(e)}. Trying alternative initialization...")
-                    # Try with older initialization method if proxy parameter is the issue
-                    try:
-                        import os
-                        # Temporarily clear any proxy-related environment variables
-                        proxy_vars = ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy']
-                        original_values = {}
-                        for var in proxy_vars:
-                            if var in os.environ:
-                                original_values[var] = os.environ[var]
-                                del os.environ[var]
-                        
-                        # Try again without proxy vars
-                        self.client: Client = create_client(
+            except Exception as e:
+                logger.error(f"Supabase initialization failed: {str(e)}")
+                # Try alternative initialization without any optional parameters
+                try:
+                    logger.info("Attempting alternative Supabase initialization...")
+                    
+                    # Clear any environment variables that might interfere
+                    import os
+                    proxy_vars = ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy', 'ALL_PROXY', 'all_proxy']
+                    original_values = {}
+                    for var in proxy_vars:
+                        if var in os.environ:
+                            original_values[var] = os.environ[var]
+                            del os.environ[var]
+                    
+                    # Try to import and use supabase differently
+                    from supabase.client import Client as SupabaseClient
+                    import httpx
+                    
+                    # Create HTTP client without proxy
+                    http_client = httpx.Client()
+                    
+                    # Try manual client creation
+                    self.client = SupabaseClient(
+                        supabase_url=settings.SUPABASE_URL,
+                        supabase_key=settings.SUPABASE_ANON_KEY
+                    )
+                    
+                    if self.has_service_role:
+                        self.admin_client = SupabaseClient(
                             supabase_url=settings.SUPABASE_URL,
-                            supabase_key=settings.SUPABASE_ANON_KEY
+                            supabase_key=settings.SUPABASE_SERVICE_ROLE_KEY
+                        )
+                    else:
+                        self.admin_client = None
+                    
+                    # Restore original environment variables
+                    for var, value in original_values.items():
+                        os.environ[var] = value
+                    
+                    logger.info("Alternative Supabase client initialization successful")
+                    
+                except Exception as e2:
+                    logger.error(f"Alternative Supabase initialization also failed: {str(e2)}")
+                    # Final fallback - try with minimal imports
+                    try:
+                        logger.info("Attempting minimal Supabase initialization...")
+                        
+                        # Use the most basic approach possible
+                        import supabase
+                        
+                        self.client = supabase.create_client(
+                            settings.SUPABASE_URL,
+                            settings.SUPABASE_ANON_KEY
                         )
                         
                         if self.has_service_role:
-                            self.admin_client: Client = create_client(
-                                supabase_url=settings.SUPABASE_URL,
-                                supabase_key=settings.SUPABASE_SERVICE_ROLE_KEY
+                            self.admin_client = supabase.create_client(
+                                settings.SUPABASE_URL,
+                                settings.SUPABASE_SERVICE_ROLE_KEY
                             )
+                        else:
+                            self.admin_client = None
                         
-                        # Restore original environment variables
-                        for var, value in original_values.items():
-                            os.environ[var] = value
+                        logger.info("Minimal Supabase client initialization successful")
                         
-                        logger.info("Supabase client initialized successfully (proxy workaround)")
-                        
-                    except Exception as e2:
-                        logger.warning(f"Supabase initialization failed even with proxy workaround: {str(e2)}. Database features will be limited.")
+                    except Exception as e3:
+                        logger.error(f"All Supabase initialization attempts failed: {str(e3)}")
+                        logger.error("Database features will be limited - using demo storage")
                         self.client = None
                         self.admin_client = None
                         self.has_supabase_credentials = False
-                else:
-                    logger.warning(f"Supabase initialization failed: {str(e)}. Database features will be limited.")
-                    self.client = None
-                    self.admin_client = None
-                    self.has_supabase_credentials = False
-            except Exception as e:
-                logger.warning(f"Supabase initialization failed: {str(e)}. Database features will be limited.")
-                self.client = None
-                self.admin_client = None
-                self.has_supabase_credentials = False
         else:
             logger.warning("Supabase credentials not found - database features will be limited")
             self.client = None
