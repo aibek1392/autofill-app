@@ -194,7 +194,7 @@ async def process_document_background(file_path: str, filename: str, user_id: st
         
         # Process document
         logger.info(f"Starting document processing - file_path: {file_path}")
-        document = await document_processor.process_document(file_path, filename)
+        document = await document_processor.process_document(file_path, filename, doc_id)
         logger.info(f"Document processed successfully - doc_id: {document['doc_id']}, text_length: {len(document['text'])}")
         
         # Document record is already created in the upload endpoint, so we don't need to create it again

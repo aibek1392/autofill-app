@@ -220,11 +220,13 @@ class DocumentProcessor:
             logger.error(f"Failed to extract text from image: {str(e)}")
             raise
     
-    async def process_document(self, file_path: str, filename: str) -> Dict[str, Any]:
+    async def process_document(self, file_path: str, filename: str, doc_id: Optional[str] = None) -> Dict[str, Any]:
         """Process document and extract text"""
         try:
             file_type = self.detect_file_type(file_path)
-            doc_id = str(uuid.uuid4())
+            # Use provided doc_id or generate new one if not provided
+            if doc_id is None:
+                doc_id = str(uuid.uuid4())
             
             if file_type == 'application/pdf':
                 extracted_data = await self.extract_text_from_pdf(file_path)
