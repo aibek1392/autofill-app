@@ -55,12 +55,12 @@ class SupabaseClient:
                     self.has_supabase_credentials = False
                     
             except Exception as e:
-                logger.error(f"Supabase initialization failed: {str(e)}")
-                # Try alternative initialization without any optional parameters
+                logger.error(f"Primary Supabase initialization failed: {str(e)}")
+                # Try with explicit parameters to avoid proxy issues
                 try:
-                    logger.info("Attempting alternative Supabase initialization...")
+                    logger.info("Attempting Supabase initialization with explicit parameters...")
                     
-                    # Clear any environment variables that might interfere
+                    # Clear proxy environment variables
                     import os
                     proxy_vars = ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy', 'ALL_PROXY', 'all_proxy']
                     original_values = {}
@@ -69,21 +69,14 @@ class SupabaseClient:
                             original_values[var] = os.environ[var]
                             del os.environ[var]
                     
-                    # Try to import and use supabase differently
-                    from supabase.client import Client as SupabaseClient
-                    import httpx
-                    
-                    # Create HTTP client without proxy
-                    http_client = httpx.Client()
-                    
-                    # Try manual client creation
-                    self.client = SupabaseClient(
+                    # Use the simplest possible initialization
+                    self.client = create_client(
                         supabase_url=settings.SUPABASE_URL,
                         supabase_key=settings.SUPABASE_ANON_KEY
                     )
                     
                     if self.has_service_role:
-                        self.admin_client = SupabaseClient(
+                        self.admin_client = create_client(
                             supabase_url=settings.SUPABASE_URL,
                             supabase_key=settings.SUPABASE_SERVICE_ROLE_KEY
                         )
@@ -94,38 +87,14 @@ class SupabaseClient:
                     for var, value in original_values.items():
                         os.environ[var] = value
                     
-                    logger.info("Alternative Supabase client initialization successful")
+                    logger.info("Supabase client initialized successfully with explicit parameters")
                     
                 except Exception as e2:
-                    logger.error(f"Alternative Supabase initialization also failed: {str(e2)}")
-                    # Final fallback - try with minimal imports
-                    try:
-                        logger.info("Attempting minimal Supabase initialization...")
-                        
-                        # Use the most basic approach possible
-                        import supabase
-                        
-                        self.client = supabase.create_client(
-                            settings.SUPABASE_URL,
-                            settings.SUPABASE_ANON_KEY
-                        )
-                        
-                        if self.has_service_role:
-                            self.admin_client = supabase.create_client(
-                                settings.SUPABASE_URL,
-                                settings.SUPABASE_SERVICE_ROLE_KEY
-                            )
-                        else:
-                            self.admin_client = None
-                        
-                        logger.info("Minimal Supabase client initialization successful")
-                        
-                    except Exception as e3:
-                        logger.error(f"All Supabase initialization attempts failed: {str(e3)}")
-                        logger.error("Database features will be limited - using demo storage")
-                        self.client = None
-                        self.admin_client = None
-                        self.has_supabase_credentials = False
+                    logger.error(f"All Supabase initialization attempts failed: {str(e2)}")
+                    logger.error("Database features will be limited - using demo storage")
+                    self.client = None
+                    self.admin_client = None
+                    self.has_supabase_credentials = False
         else:
             logger.warning("Supabase credentials not found - database features will be limited")
             self.client = None
