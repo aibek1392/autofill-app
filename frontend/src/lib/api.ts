@@ -149,6 +149,18 @@ export const getUserDocuments = async (): Promise<{ documents: Document[] }> => 
   return response.data
 }
 
+export const deleteDocument = async (docId: string): Promise<{ message: string, doc_id: string, filename: string, deleted_from: string[] }> => {
+  // Get authenticated user ID
+  const userId = await getUserId()
+
+  const response = await api.delete(`/api/documents/${docId}`, {
+    headers: {
+      'X-User-ID': userId,
+    },
+  })
+  return response.data
+}
+
 export const chatWithDocuments = async (message: string): Promise<ChatResponse> => {
   try {
     const response = await fetch(`${API_BASE_URL}/api/chat`, {

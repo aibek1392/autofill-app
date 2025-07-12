@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { User } from '@supabase/supabase-js'
 import { supabase } from '../lib'
-import { getUserStats, getUserDocuments, getFilledForms, UserStats, Document } from '../lib/api'
+import { getUserStats, getUserDocuments, getFilledForms, deleteDocument, UserStats, Document } from '../lib/api'
 import FileUpload from '../components/FileUpload'
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import Chat from '../components/Chat'
@@ -21,7 +21,8 @@ import {
   Clock,
   CheckCircle,
   AlertCircle,
-  Globe
+  Globe,
+  Trash2
 } from 'lucide-react'
 
 interface DashboardProps {
@@ -38,6 +39,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user = null }) => {
   const [documents, setDocuments] = useState<Document[]>([])
   const [filledForms, setFilledForms] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [deletingDocId, setDeletingDocId] = useState<string | null>(null)
 
   // Check if we're in demo mode
   const isDemoMode = !supabase || !user
@@ -70,6 +72,32 @@ const Dashboard: React.FC<DashboardProps> = ({ user = null }) => {
       }
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleDeleteDocument = async (docId: string, filename: string) => {
+    // Confirm deletion
+    if (!window.confirm(`Are you sure you want to delete "${filename}"? This action cannot be undone.`)) {
+      return
+    }
+
+    setDeletingDocId(docId)
+    
+    try {
+      await deleteDocument(docId)
+      
+      // Remove the document from the local state
+      setDocuments(prev => prev.filter(doc => doc.doc_id !== docId))
+      
+      // Refresh stats
+      await loadDashboardData()
+      
+      console.log(`Document "${filename}" deleted successfully`)
+    } catch (error) {
+      console.error('Failed to delete document:', error)
+      alert(`Failed to delete document: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setDeletingDocId(null)
     }
   }
 
@@ -171,6 +199,22 @@ const Dashboard: React.FC<DashboardProps> = ({ user = null }) => {
                           {doc.processing_status === 'failed' && <AlertCircle className="w-3 h-3 mr-1" />}
                           {doc.processing_status}
                         </span>
+                        <button
+                          onClick={() => handleDeleteDocument(doc.doc_id, doc.filename)}
+                          disabled={deletingDocId === doc.doc_id}
+                          className={`p-1 rounded-full transition-colors ${
+                            deletingDocId === doc.doc_id
+                              ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                              : 'bg-red-100 text-red-600 hover:bg-red-200 hover:text-red-700'
+                          }`}
+                          title="Delete document"
+                        >
+                          {deletingDocId === doc.doc_id ? (
+                            <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <X className="w-4 h-4" />
+                          )}
+                        </button>
                       </div>
                     </div>
                   ))}

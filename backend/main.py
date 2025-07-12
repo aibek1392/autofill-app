@@ -433,6 +433,121 @@ async def get_user_documents(user_id: Optional[str] = Header(None, alias="X-User
         # Return demo storage as final fallback
         return {"documents": demo_documents.get(user_id, [])}
 
+@app.delete("/api/documents/{doc_id}")
+async def delete_document(
+    doc_id: str,
+    user_id: Optional[str] = Header(None, alias="X-User-ID"),
+    authorization: Optional[str] = Header(None)
+):
+    """Delete a document completely from all storage locations"""
+    try:
+        logger.info(f"Delete request received - doc_id: {doc_id}, user_id: {user_id}")
+        
+        if not user_id:
+            raise HTTPException(status_code=401, detail="User ID not provided")
+        
+        if not supabase_client.has_supabase_credentials:
+            raise HTTPException(status_code=500, detail="Database not available")
+        
+        # Get document info first to verify ownership and get details
+        try:
+            client = supabase_client.admin_client if supabase_client.admin_client else supabase_client.client
+            doc_result = client.table('uploaded_documents').select('*').eq('doc_id', doc_id).eq('user_id', user_id).execute()
+            
+            if not doc_result.data:
+                raise HTTPException(status_code=404, detail="Document not found or access denied")
+            
+            document = doc_result.data[0]
+            logger.info(f"Found document to delete: {document['filename']} - doc_id: {doc_id}")
+            
+        except Exception as e:
+            logger.error(f"Failed to get document info: {str(e)}")
+            raise HTTPException(status_code=500, detail="Failed to retrieve document information")
+        
+        # Step 1: Delete from Pinecone (vectors)
+        try:
+            logger.info(f"Deleting vectors from Pinecone for doc_id: {doc_id}")
+            
+            # Use the existing delete_document_vectors method
+            await pinecone_client.delete_document_vectors(doc_id)
+            logger.info(f"Successfully deleted vectors from Pinecone for doc_id: {doc_id}")
+                
+        except Exception as e:
+            logger.warning(f"Failed to delete vectors from Pinecone: {str(e)}")
+            # Continue with other deletions even if Pinecone fails
+        
+        # Step 2: Delete from Supabase vector_chunks table
+        try:
+            logger.info(f"Deleting chunks from Supabase for doc_id: {doc_id}")
+            chunks_result = client.table('vector_chunks').delete().eq('doc_id', doc_id).eq('user_id', user_id).execute()
+            deleted_chunks = len(chunks_result.data) if chunks_result.data else 0
+            logger.info(f"Deleted {deleted_chunks} chunks from Supabase vector_chunks table")
+            
+        except Exception as e:
+            logger.error(f"Failed to delete chunks from Supabase: {str(e)}")
+            # Continue with other deletions
+        
+        # Step 3: Delete physical file from disk
+        try:
+            # Try to find and delete the physical file
+            # Files are stored with UUID names, so we need to search for files with the doc_id
+            import glob
+            
+            # Search for files that might match this doc_id
+            possible_files = glob.glob(os.path.join(settings.UPLOAD_DIR, f"{doc_id}*"))
+            
+            deleted_files = 0
+            for file_path in possible_files:
+                try:
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                        deleted_files += 1
+                        logger.info(f"Deleted physical file: {file_path}")
+                except Exception as file_error:
+                    logger.warning(f"Failed to delete file {file_path}: {str(file_error)}")
+            
+            if deleted_files == 0:
+                logger.warning(f"No physical files found to delete for doc_id: {doc_id}")
+            
+        except Exception as e:
+            logger.warning(f"Failed to delete physical files: {str(e)}")
+            # Continue with database deletion
+        
+        # Step 4: Delete from Supabase uploaded_documents table (this should be last)
+        try:
+            logger.info(f"Deleting document record from Supabase for doc_id: {doc_id}")
+            doc_delete_result = client.table('uploaded_documents').delete().eq('doc_id', doc_id).eq('user_id', user_id).execute()
+            
+            if doc_delete_result.data:
+                logger.info(f"Successfully deleted document record from Supabase")
+            else:
+                logger.warning("No document record was deleted from Supabase")
+            
+        except Exception as e:
+            logger.error(f"Failed to delete document record from Supabase: {str(e)}")
+            raise HTTPException(status_code=500, detail="Failed to delete document record")
+        
+        logger.info(f"Document deletion completed successfully - doc_id: {doc_id}, filename: {document['filename']}")
+        
+        return {
+            "message": "Document deleted successfully",
+            "doc_id": doc_id,
+            "filename": document['filename'],
+            "deleted_from": [
+                "uploaded_documents",
+                "vector_chunks", 
+                "pinecone_vectors",
+                "physical_files"
+            ]
+        }
+        
+    except HTTPException:
+        # Re-raise HTTPExceptions without modification
+        raise
+    except Exception as e:
+        logger.error(f"Document deletion failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete document: {str(e)}")
+
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat_with_documents(request: ChatRequest):
     """Chat with user's documents using RAG"""
