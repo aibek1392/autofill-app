@@ -9,6 +9,7 @@ import FormFiller from '../components/FormFiller'
 import WebFormAutofill from '../components/WebFormAutofill'
 import ResizableChatPanel from '../components/ResizableChatPanel'
 import AuthStatus from '../components/AuthStatus'
+import ConfirmDeleteModal from '../components/ConfirmDeleteModal'
 import { 
   LogOut, 
   Upload, 
@@ -21,8 +22,7 @@ import {
   Clock,
   CheckCircle,
   AlertCircle,
-  Globe,
-  Trash2
+  Globe
 } from 'lucide-react'
 
 interface DashboardProps {
@@ -40,6 +40,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user = null }) => {
   const [filledForms, setFilledForms] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null)
+  const [clearUploadSuccess, setClearUploadSuccess] = useState(false)
+  const [showConfirmDeleteModal, setShowConfirmDeleteModal] = useState(false)
+  const [documentToDelete, setDocumentToDelete] = useState<{ docId: string; filename: string } | null>(null)
 
   // Check if we're in demo mode
   const isDemoMode = !supabase || !user
@@ -76,18 +79,26 @@ const Dashboard: React.FC<DashboardProps> = ({ user = null }) => {
   }
 
   const handleDeleteDocument = async (docId: string, filename: string) => {
-    // Confirm deletion
-    if (!window.confirm(`Are you sure you want to delete "${filename}"? This action cannot be undone.`)) {
-      return
-    }
+    // Show the confirmation modal instead of window.confirm
+    setDocumentToDelete({ docId, filename })
+    setShowConfirmDeleteModal(true)
+  }
 
+  const confirmDeleteDocument = async () => {
+    if (!documentToDelete) return
+    
+    const { docId, filename } = documentToDelete
     setDeletingDocId(docId)
+    setShowConfirmDeleteModal(false)
     
     try {
       await deleteDocument(docId)
       
       // Remove the document from the local state
       setDocuments(prev => prev.filter(doc => doc.doc_id !== docId))
+      
+      // Clear the upload success notification
+      setClearUploadSuccess(true)
       
       // Refresh stats
       await loadDashboardData()
@@ -98,7 +109,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user = null }) => {
       alert(`Failed to delete document: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setDeletingDocId(null)
+      setDocumentToDelete(null)
     }
+  }
+
+  const cancelDeleteDocument = () => {
+    setShowConfirmDeleteModal(false)
+    setDocumentToDelete(null)
   }
 
   const handleSignOut = async () => {
@@ -152,6 +169,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user = null }) => {
             <AuthStatus />
             
             <FileUpload 
+              clearSuccess={clearUploadSuccess}
+              recentDocuments={documents}
               onUploadComplete={(files) => {
                 console.log('Files uploaded successfully:', files)
                 // Validate the uploaded files structure
@@ -166,6 +185,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user = null }) => {
                 } else {
                   console.warn('Invalid files structure received:', files)
                 }
+                // Reset the clear success flag
+                setClearUploadSuccess(false)
                 loadDashboardData() // Refresh data
               }}
             />
@@ -575,6 +596,15 @@ const Dashboard: React.FC<DashboardProps> = ({ user = null }) => {
           {renderContent()}
         </main>
       </div>
+
+      {/* Confirm Delete Modal */}
+      <ConfirmDeleteModal
+        isOpen={showConfirmDeleteModal}
+        onClose={cancelDeleteDocument}
+        onConfirm={confirmDeleteDocument}
+        filename={documentToDelete?.filename}
+        loading={deletingDocId !== null}
+      />
     </div>
   )
 }

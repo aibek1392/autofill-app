@@ -1,13 +1,15 @@
-import React, { useCallback, useState } from 'react'
+import React, { useCallback, useState, useEffect } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { Upload, File, X, CheckCircle, AlertCircle } from 'lucide-react'
-import { uploadDocuments, UploadedFile } from '../lib/api'
+import { uploadDocuments, UploadedFile, Document } from '../lib/api'
 
 interface FileUploadProps {
   onUploadComplete?: (files: UploadedFile[]) => void
   accept?: string[]
   maxFiles?: number
   maxSize?: number
+  clearSuccess?: boolean // New prop to clear success notification
+  recentDocuments?: Document[] // New prop to show real processing status
 }
 
 interface FileWithStatus extends File {
@@ -21,17 +23,24 @@ const FileUpload: React.FC<FileUploadProps> = ({
   accept = ['.pdf', '.jpg', '.jpeg', '.png'],
   maxFiles = 10,
   maxSize = 10 * 1024 * 1024, // 10MB
+  clearSuccess = false, // New prop
+  recentDocuments = [], // New prop
 }) => {
   const [files, setFiles] = useState<FileWithStatus[]>([])
   const [isUploading, setIsUploading] = useState(false)
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
-  const [error, setError] = useState<string | null>(null)
+
+  // Clear success notification when clearSuccess prop changes
+  useEffect(() => {
+    if (clearSuccess) {
+      setUploadedFiles([])
+    }
+  }, [clearSuccess])
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return
     
     setIsUploading(true)
-    setError(null)
     
     try {
       const result = await uploadDocuments(acceptedFiles)
@@ -45,9 +54,9 @@ const FileUpload: React.FC<FileUploadProps> = ({
       
       // Check if it's an authentication error
       if (error instanceof Error && error.message.includes('User not authenticated')) {
-        setError('Please log in to upload documents. You need to be authenticated to use this feature.')
+        alert('Please log in to upload documents. You need to be authenticated to use this feature.')
       } else {
-        setError(error instanceof Error ? error.message : 'Upload failed')
+        alert(error instanceof Error ? error.message : 'Upload failed')
       }
     } finally {
       setIsUploading(false)
@@ -135,6 +144,26 @@ const FileUpload: React.FC<FileUploadProps> = ({
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
   }
 
+  // Get processing status from recent documents
+  const getProcessingStatus = (filename: string) => {
+    const doc = recentDocuments.find(d => d.filename === filename)
+    return doc?.processing_status || 'uploaded'
+  }
+
+  // Get processing status icon
+  const getProcessingStatusIcon = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return <CheckCircle className="w-4 h-4 text-green-500" />
+      case 'processing':
+        return <div className="w-4 h-4 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin" />
+      case 'failed':
+        return <AlertCircle className="w-4 h-4 text-red-500" />
+      default:
+        return <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+    }
+  }
+
   return (
     <div className="w-full">
       {/* Dropzone */}
@@ -165,23 +194,35 @@ const FileUpload: React.FC<FileUploadProps> = ({
       {uploadedFiles.length > 0 && (
         <div className="mt-6">
           <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-            <h3 className="text-lg font-medium text-green-900 mb-3">
-              ✅ Upload Successful
-            </h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-medium text-green-900">
+                ✅ Upload Successful
+              </h3>
+              <button
+                onClick={() => setUploadedFiles([])}
+                className="text-green-700 hover:text-green-900 p-1"
+                title="Dismiss notification"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
             <div className="space-y-2">
-              {uploadedFiles.map((file, index) => (
-                <div key={file.file_id} className="flex items-center justify-between p-2 bg-white rounded border">
-                  <div className="flex items-center space-x-3">
-                    <CheckCircle className="w-4 h-4 text-green-500" />
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">{file.filename}</p>
-                      <p className="text-xs text-gray-500">
-                        {file.size ? formatFileSize(file.size) : 'Size unknown'} • Status: {file.status}
-                      </p>
+              {uploadedFiles.map((file, index) => {
+                const processingStatus = getProcessingStatus(file.filename)
+                return (
+                  <div key={file.file_id} className="flex items-center justify-between p-2 bg-white rounded border">
+                    <div className="flex items-center space-x-3">
+                      {getProcessingStatusIcon(processingStatus)}
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{file.filename}</p>
+                        <p className="text-xs text-gray-500">
+                          {file.size ? formatFileSize(file.size) : 'Size unknown'} • Status: {processingStatus}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         </div>

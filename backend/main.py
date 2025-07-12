@@ -468,8 +468,35 @@ async def delete_document(
         try:
             logger.info(f"Deleting vectors from Pinecone for doc_id: {doc_id}")
             
-            # Use the existing delete_document_vectors method
+            # First, try to delete using the database doc_id
             await pinecone_client.delete_document_vectors(doc_id)
+            
+            # Also check for any vectors that might have been created with a different doc_id
+            # This can happen if there was a doc_id mismatch during processing
+            try:
+                # Query to find any vectors associated with this user and filename
+                # that might have a different doc_id
+                query_response = pinecone_client.index.query(
+                    vector=[0.0] * 1536,  # Dummy vector
+                    filter={
+                        'user_id': user_id,
+                        'filename': document['filename']
+                    },
+                    top_k=10000,  # Large number to get all
+                    include_metadata=True,
+                    include_values=False
+                )
+                
+                # Delete any remaining vectors for this user/filename combination
+                remaining_ids = [match.id for match in query_response.matches]
+                if remaining_ids:
+                    logger.info(f"Found {len(remaining_ids)} additional vectors to delete for user {user_id}, filename {document['filename']}")
+                    pinecone_client.index.delete(ids=remaining_ids)
+                    logger.info(f"Deleted {len(remaining_ids)} additional vectors")
+                
+            except Exception as cleanup_error:
+                logger.warning(f"Failed to clean up additional vectors: {str(cleanup_error)}")
+            
             logger.info(f"Successfully deleted vectors from Pinecone for doc_id: {doc_id}")
                 
         except Exception as e:
