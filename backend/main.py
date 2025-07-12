@@ -152,20 +152,88 @@ async def health_check():
 async def process_document_background(file_path: str, filename: str, user_id: str):
     """Background task to process uploaded document"""
     try:
+        logger.info(f"Starting background processing - file_path: {file_path}, filename: {filename}, user_id: {user_id}")
+        
+        # Check if file exists
+        if not os.path.exists(file_path):
+            logger.error(f"File not found for processing: {file_path}")
+            # Update document status to indicate processing failed
+            if supabase_client.has_supabase_credentials:
+                try:
+                    # Find the document by filename and user_id
+                    docs_result = supabase_client.admin_client.table('uploaded_documents').select('*').eq('filename', filename).eq('user_id', user_id).execute()
+                    if docs_result.data:
+                        doc_id = docs_result.data[0]['doc_id']
+                        # Update status to failed
+                        supabase_client.admin_client.table('uploaded_documents').update({'processing_status': 'failed'}).eq('doc_id', doc_id).execute()
+                        logger.info(f"Updated document status to 'failed' for missing file - doc_id: {doc_id}")
+                except Exception as e:
+                    logger.error(f"Failed to update document status: {str(e)}")
+            return
+        
+        # Check file size
+        file_size = os.path.getsize(file_path)
+        logger.info(f"Processing file - size: {file_size} bytes")
+        
+        if file_size == 0:
+            logger.error(f"File is empty: {file_path}")
+            return
+        
+        # Update document status to processing
+        doc_id = None
+        if supabase_client.has_supabase_credentials:
+            try:
+                docs_result = supabase_client.admin_client.table('uploaded_documents').select('*').eq('filename', filename).eq('user_id', user_id).execute()
+                if docs_result.data:
+                    doc_id = docs_result.data[0]['doc_id']
+                    # Update status to processing
+                    supabase_client.admin_client.table('uploaded_documents').update({'processing_status': 'processing'}).eq('doc_id', doc_id).execute()
+                    logger.info(f"Updated document status to 'processing' - doc_id: {doc_id}")
+            except Exception as e:
+                logger.error(f"Failed to update document status to processing: {str(e)}")
+        
         # Process document
+        logger.info(f"Starting document processing - file_path: {file_path}")
         document = await document_processor.process_document(file_path, filename)
+        logger.info(f"Document processed successfully - doc_id: {document['doc_id']}, text_length: {len(document['text'])}")
         
         # Document record is already created in the upload endpoint, so we don't need to create it again
         # Just chunk and process the document
         chunks = document_processor.chunk_document(document)
+        logger.info(f"Document chunked successfully - chunks: {len(chunks)}")
         
         # Process through RAG pipeline with document for field embeddings
         await rag_service.process_document_pipeline(chunks, user_id, document['doc_id'], document)
+        logger.info(f"RAG pipeline completed successfully - doc_id: {document['doc_id']}")
         
-        logger.info(f"Document processing completed - user_id: {user_id}, doc_id: {document['doc_id']}, filename: {filename}")
+        # Update document status to completed
+        if supabase_client.has_supabase_credentials and doc_id:
+            try:
+                supabase_client.admin_client.table('uploaded_documents').update({'processing_status': 'completed'}).eq('doc_id', doc_id).execute()
+                logger.info(f"Updated document status to 'completed' - doc_id: {doc_id}")
+            except Exception as e:
+                logger.error(f"Failed to update document status to completed: {str(e)}")
+        
+        logger.info(f"Document processing completed successfully - user_id: {user_id}, doc_id: {document['doc_id']}, filename: {filename}")
         
     except Exception as e:
         logger.error(f"Background document processing failed: {str(e)}")
+        logger.error(f"Error details - file_path: {file_path}, filename: {filename}, user_id: {user_id}")
+        
+        # Update document status to failed
+        if supabase_client.has_supabase_credentials:
+            try:
+                docs_result = supabase_client.admin_client.table('uploaded_documents').select('*').eq('filename', filename).eq('user_id', user_id).execute()
+                if docs_result.data:
+                    doc_id = docs_result.data[0]['doc_id']
+                    supabase_client.admin_client.table('uploaded_documents').update({'processing_status': 'failed'}).eq('doc_id', doc_id).execute()
+                    logger.info(f"Updated document status to 'failed' due to processing error - doc_id: {doc_id}")
+            except Exception as status_error:
+                logger.error(f"Failed to update document status to failed: {str(status_error)}")
+        
+        # Re-raise the exception for debugging
+        import traceback
+        traceback.print_exc()
 
 @app.post("/api/upload")
 async def upload_documents(
