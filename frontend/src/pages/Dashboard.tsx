@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { User } from '@supabase/supabase-js'
 import { supabase } from '../lib'
 import { getUserStats, getUserDocuments, getFilledForms, deleteDocument, UserStats, Document } from '../lib/api'
@@ -43,12 +43,21 @@ const Dashboard: React.FC<DashboardProps> = ({ user = null }) => {
   const [clearUploadSuccess, setClearUploadSuccess] = useState(false)
   const [showConfirmDeleteModal, setShowConfirmDeleteModal] = useState(false)
   const [documentToDelete, setDocumentToDelete] = useState<{ docId: string; filename: string } | null>(null)
+  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null)
 
   // Check if we're in demo mode
   const isDemoMode = !supabase || !user
 
   useEffect(() => {
     loadDashboardData()
+    startPolling()
+    
+    // Cleanup polling on unmount
+    return () => {
+      if (pollingInterval) {
+        clearInterval(pollingInterval)
+      }
+    }
   }, [])
 
   const loadDashboardData = async () => {
@@ -77,6 +86,56 @@ const Dashboard: React.FC<DashboardProps> = ({ user = null }) => {
       setLoading(false)
     }
   }
+
+  // Start polling for document status updates
+  const startPolling = useCallback(() => {
+    // Clear any existing interval
+    if (pollingInterval) {
+      clearInterval(pollingInterval)
+    }
+    
+    // Poll every 3 seconds for document status updates
+    const interval = setInterval(async () => {
+      try {
+        // Only poll if we have documents that are processing
+        const hasProcessingDocs = documents.some(doc => 
+          doc.processing_status === 'processing' || 
+          doc.processing_status === 'uploaded'
+        )
+        
+        if (hasProcessingDocs) {
+          const documentsData = await getUserDocuments()
+          setDocuments(documentsData.documents)
+        }
+      } catch (error) {
+        console.error('Polling error:', error)
+      }
+    }, 3000) // Poll every 3 seconds
+    
+    setPollingInterval(interval)
+  }, [pollingInterval, documents])
+
+  // Stop polling
+  const stopPolling = useCallback(() => {
+    if (pollingInterval) {
+      clearInterval(pollingInterval)
+      setPollingInterval(null)
+    }
+  }, [pollingInterval])
+
+  // Restart polling when documents change
+  useEffect(() => {
+    const hasProcessingDocs = documents.some(doc => 
+      doc.processing_status === 'processing' || 
+      doc.processing_status === 'uploaded'
+    )
+    
+    if (hasProcessingDocs && !pollingInterval) {
+      startPolling()
+    } else if (!hasProcessingDocs && pollingInterval) {
+      stopPolling()
+    }
+  }, [documents, pollingInterval, startPolling, stopPolling])
 
   const handleDeleteDocument = async (docId: string, filename: string) => {
     // Show the confirmation modal instead of window.confirm

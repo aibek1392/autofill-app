@@ -150,17 +150,45 @@ const FileUpload: React.FC<FileUploadProps> = ({
     return doc?.processing_status || 'uploaded'
   }
 
-  // Get processing status icon
+  // Get processing status icon with better visual feedback
   const getProcessingStatusIcon = (status: string) => {
     switch (status) {
       case 'completed':
         return <CheckCircle className="w-4 h-4 text-green-500" />
       case 'processing':
-        return <div className="w-4 h-4 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin" />
+        return (
+          <div className="flex items-center space-x-1">
+            <div className="w-4 h-4 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin" />
+            <span className="text-xs text-yellow-600 font-medium">Processing...</span>
+          </div>
+        )
       case 'failed':
         return <AlertCircle className="w-4 h-4 text-red-500" />
+      case 'uploaded':
+        return (
+          <div className="flex items-center space-x-1">
+            <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            <span className="text-xs text-blue-600 font-medium">Starting...</span>
+          </div>
+        )
       default:
-        return <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+        return <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+    }
+  }
+
+  // Get status text with more descriptive messages
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return 'Ready to use'
+      case 'processing':
+        return 'Processing document...'
+      case 'failed':
+        return 'Processing failed'
+      case 'uploaded':
+        return 'Preparing to process...'
+      default:
+        return status
     }
   }
 
@@ -216,7 +244,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
                       <div>
                         <p className="text-sm font-medium text-gray-900">{file.filename}</p>
                         <p className="text-xs text-gray-500">
-                          {file.size ? formatFileSize(file.size) : 'Size unknown'} • Status: {processingStatus}
+                          {file.size ? formatFileSize(file.size) : 'Size unknown'} • Status: {getStatusText(processingStatus)}
                         </p>
                       </div>
                     </div>
