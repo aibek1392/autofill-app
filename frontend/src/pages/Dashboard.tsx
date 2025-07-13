@@ -10,7 +10,7 @@ import WebFormAutofill from '../components/WebFormAutofill'
 import ResizableChatPanel from '../components/ResizableChatPanel'
 import AuthStatus from '../components/AuthStatus'
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal'
-import SimplePDFEmbed from '../components/SimplePDFEmbed'
+import EmbeddedPDFEditor from '../components/EmbeddedPDFEditor'
 import { 
   LogOut, 
   Upload, 
@@ -717,7 +717,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user = null }) => {
 
       {/* PDF Viewer */}
       {selectedDocument && (
-        <SimplePDFEmbed
+        <EmbeddedPDFEditor
           isOpen={pdfViewerOpen}
           onClose={handleClosePdfViewer}
           document={selectedDocument}
