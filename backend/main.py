@@ -712,6 +712,89 @@ async def download_file(filename: str, user_id: str = Depends(get_current_user))
         logger.error(f"File download failed: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/documents/{doc_id}/download")
+async def download_document_by_id(
+    doc_id: str,
+    user_id: Optional[str] = Header(None, alias="X-User-ID"),
+    authorization: Optional[str] = Header(None)
+):
+    """Download a document by its doc_id"""
+    try:
+        logger.info(f"Download request for doc_id: {doc_id}, user_id: {user_id}")
+        
+        if not user_id:
+            raise HTTPException(status_code=401, detail="User ID not provided")
+        
+        # First verify the document exists and belongs to the user
+        if supabase_client.has_supabase_credentials:
+            try:
+                client = supabase_client.admin_client if supabase_client.admin_client else supabase_client.client
+                doc_result = client.table('uploaded_documents').select('*').eq('doc_id', doc_id).eq('user_id', user_id).execute()
+                
+                if not doc_result.data:
+                    raise HTTPException(status_code=404, detail="Document not found or access denied")
+                
+                document = doc_result.data[0]
+                logger.info(f"Found document: {document['filename']} for download")
+                
+            except Exception as e:
+                logger.error(f"Failed to verify document ownership: {str(e)}")
+                raise HTTPException(status_code=500, detail="Failed to verify document access")
+        else:
+            # Fallback to demo storage
+            user_docs = demo_documents.get(user_id, [])
+            document = None
+            for doc in user_docs:
+                if doc['doc_id'] == doc_id:
+                    document = doc
+                    break
+            
+            if not document:
+                raise HTTPException(status_code=404, detail="Document not found")
+        
+        # Look for the physical file
+        import glob
+        
+        # Search for files that match this doc_id (they're stored with UUID names)
+        possible_files = glob.glob(os.path.join(settings.UPLOAD_DIR, f"{doc_id}*"))
+        
+        if not possible_files:
+            logger.error(f"No physical file found for doc_id: {doc_id}")
+            raise HTTPException(status_code=404, detail="Document file not found on disk")
+        
+        # Use the first matching file
+        file_path = possible_files[0]
+        
+        if not os.path.exists(file_path):
+            logger.error(f"File does not exist: {file_path}")
+            raise HTTPException(status_code=404, detail="Document file not found")
+        
+        # Determine the appropriate media type
+        file_extension = os.path.splitext(document['filename'])[1].lower()
+        media_type = 'application/octet-stream'  # Default
+        
+        if file_extension == '.pdf':
+            media_type = 'application/pdf'
+        elif file_extension in ['.jpg', '.jpeg']:
+            media_type = 'image/jpeg'
+        elif file_extension == '.png':
+            media_type = 'image/png'
+        
+        logger.info(f"Serving file: {file_path} as {media_type}")
+        
+        return FileResponse(
+            file_path,
+            media_type=media_type,
+            filename=document['filename']
+        )
+    
+    except HTTPException:
+        # Re-raise HTTPExceptions without modification
+        raise
+    except Exception as e:
+        logger.error(f"Document download failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to download document: {str(e)}")
+
 @app.get("/api/filled-forms")
 async def get_filled_forms(user_id: Optional[str] = Header(None, alias="X-User-ID")):
     """Get all filled forms for the current user"""

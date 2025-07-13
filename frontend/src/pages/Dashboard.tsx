@@ -10,6 +10,7 @@ import WebFormAutofill from '../components/WebFormAutofill'
 import ResizableChatPanel from '../components/ResizableChatPanel'
 import AuthStatus from '../components/AuthStatus'
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal'
+import PDFViewer from '../components/PDFViewer'
 import { 
   LogOut, 
   Upload, 
@@ -22,7 +23,9 @@ import {
   Clock,
   CheckCircle,
   AlertCircle,
-  Globe
+  Globe,
+  Eye,
+  Edit
 } from 'lucide-react'
 
 interface DashboardProps {
@@ -44,6 +47,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user = null }) => {
   const [showConfirmDeleteModal, setShowConfirmDeleteModal] = useState(false)
   const [documentToDelete, setDocumentToDelete] = useState<{ docId: string; filename: string } | null>(null)
   const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null)
+  const [pdfViewerOpen, setPdfViewerOpen] = useState(false)
+  const [selectedDocument, setSelectedDocument] = useState<Document | null>(null)
+  const [pdfViewerMode, setPdfViewerMode] = useState<'view' | 'edit'>('view')
 
   // Check if we're in demo mode
   const isDemoMode = !supabase || !user
@@ -99,46 +105,51 @@ const Dashboard: React.FC<DashboardProps> = ({ user = null }) => {
       try {
         // Only poll if we have documents that are processing
         const hasProcessingDocs = documents.some(doc => 
-          doc.processing_status === 'processing' || 
-          doc.processing_status === 'uploaded'
+          doc.processing_status === 'processing' || doc.processing_status === 'uploaded'
         )
         
         if (hasProcessingDocs) {
           const documentsData = await getUserDocuments()
           setDocuments(documentsData.documents)
+          
+          // Stop polling if no more processing documents
+          const stillProcessing = documentsData.documents.some(doc => 
+            doc.processing_status === 'processing' || doc.processing_status === 'uploaded'
+          )
+          
+          if (!stillProcessing) {
+            clearInterval(interval)
+            setPollingInterval(null)
+          }
+        } else {
+          // No processing documents, stop polling
+          clearInterval(interval)
+          setPollingInterval(null)
         }
       } catch (error) {
         console.error('Polling error:', error)
+        // Continue polling even if there's an error
       }
     }, 3000) // Poll every 3 seconds
     
     setPollingInterval(interval)
-  }, [pollingInterval, documents])
+  }, [documents, pollingInterval])
 
-  // Stop polling
-  const stopPolling = useCallback(() => {
-    if (pollingInterval) {
-      clearInterval(pollingInterval)
-      setPollingInterval(null)
-    }
-  }, [pollingInterval])
-
-  // Restart polling when documents change
+  // Update polling when documents change
   useEffect(() => {
     const hasProcessingDocs = documents.some(doc => 
-      doc.processing_status === 'processing' || 
-      doc.processing_status === 'uploaded'
+      doc.processing_status === 'processing' || doc.processing_status === 'uploaded'
     )
     
     if (hasProcessingDocs && !pollingInterval) {
       startPolling()
     } else if (!hasProcessingDocs && pollingInterval) {
-      stopPolling()
+      clearInterval(pollingInterval)
+      setPollingInterval(null)
     }
-  }, [documents, pollingInterval, startPolling, stopPolling])
+  }, [documents, pollingInterval, startPolling])
 
   const handleDeleteDocument = async (docId: string, filename: string) => {
-    // Show the confirmation modal instead of window.confirm
     setDocumentToDelete({ docId, filename })
     setShowConfirmDeleteModal(true)
   }
@@ -146,28 +157,26 @@ const Dashboard: React.FC<DashboardProps> = ({ user = null }) => {
   const confirmDeleteDocument = async () => {
     if (!documentToDelete) return
     
-    const { docId, filename } = documentToDelete
-    setDeletingDocId(docId)
-    setShowConfirmDeleteModal(false)
-    
     try {
-      await deleteDocument(docId)
+      setDeletingDocId(documentToDelete.docId)
+      await deleteDocument(documentToDelete.docId)
       
-      // Remove the document from the local state
-      setDocuments(prev => prev.filter(doc => doc.doc_id !== docId))
+      // Remove document from state
+      setDocuments(prev => prev.filter(doc => doc.doc_id !== documentToDelete.docId))
       
-      // Clear the upload success notification
-      setClearUploadSuccess(true)
+      // Show success message
+      console.log(`Document "${documentToDelete.filename}" deleted successfully`)
       
-      // Refresh stats
-      await loadDashboardData()
+      // Refresh data to ensure consistency
+      loadDashboardData()
       
-      console.log(`Document "${filename}" deleted successfully`)
     } catch (error) {
       console.error('Failed to delete document:', error)
-      alert(`Failed to delete document: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      // Show error message to user
+      alert('Failed to delete document. Please try again.')
     } finally {
       setDeletingDocId(null)
+      setShowConfirmDeleteModal(false)
       setDocumentToDelete(null)
     }
   }
@@ -177,12 +186,29 @@ const Dashboard: React.FC<DashboardProps> = ({ user = null }) => {
     setDocumentToDelete(null)
   }
 
+  // PDF Viewer handlers
+  const handleViewDocument = (document: Document) => {
+    setSelectedDocument(document)
+    setPdfViewerMode('view')
+    setPdfViewerOpen(true)
+  }
+
+  const handleEditDocument = (document: Document) => {
+    setSelectedDocument(document)
+    setPdfViewerMode('edit')
+    setPdfViewerOpen(true)
+  }
+
+  const handleClosePdfViewer = () => {
+    setPdfViewerOpen(false)
+    setSelectedDocument(null)
+  }
+
   const handleSignOut = async () => {
-    if (supabase) {
-      await supabase.auth.signOut()
-    } else {
-      // In demo mode, redirect to login
-      window.location.href = '/login'
+    try {
+      await supabase?.auth.signOut()
+    } catch (error) {
+      console.error('Sign out error:', error)
     }
   }
 
@@ -279,6 +305,30 @@ const Dashboard: React.FC<DashboardProps> = ({ user = null }) => {
                           {doc.processing_status === 'failed' && <AlertCircle className="w-3 h-3 mr-1" />}
                           {doc.processing_status}
                         </span>
+                        
+                        {/* View and Edit buttons for documents */}
+                        {doc.processing_status === 'completed' && (
+                          <>
+                            <button
+                              onClick={() => handleViewDocument(doc)}
+                              className="p-1 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 hover:text-blue-700 transition-colors"
+                              title={doc.type === 'application/pdf' ? 'View PDF with SimplePDF' : 'View/Download Document'}
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            {/* Edit button only for PDF documents */}
+                            {doc.type === 'application/pdf' && (
+                              <button
+                                onClick={() => handleEditDocument(doc)}
+                                className="p-1 rounded-full bg-green-100 text-green-600 hover:bg-green-200 hover:text-green-700 transition-colors"
+                                title="Edit PDF with SimplePDF"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                            )}
+                          </>
+                        )}
+                        
                         <button
                           onClick={() => handleDeleteDocument(doc.doc_id, doc.filename)}
                           disabled={deletingDocId === doc.doc_id}
@@ -664,6 +714,16 @@ const Dashboard: React.FC<DashboardProps> = ({ user = null }) => {
         filename={documentToDelete?.filename}
         loading={deletingDocId !== null}
       />
+
+      {/* PDF Viewer */}
+      {selectedDocument && (
+        <PDFViewer
+          isOpen={pdfViewerOpen}
+          onClose={handleClosePdfViewer}
+          document={selectedDocument}
+          mode={pdfViewerMode}
+        />
+      )}
     </div>
   )
 }
