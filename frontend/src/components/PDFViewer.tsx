@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { X, Eye, Edit, AlertTriangle } from 'lucide-react'
+import { X, Eye, Edit, AlertTriangle, ExternalLink } from 'lucide-react'
 
 interface PDFViewerProps {
   isOpen: boolean
@@ -41,8 +41,14 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ isOpen, onClose, document, mode }
     return `${API_BASE_URL}/documents/${document.doc_id}/download`
   }
 
+  const getPublicDocumentUrl = () => {
+    // Construct the public URL for SimplePDF to access the document
+    const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://autofill-backend-a64u.onrender.com'
+    return `${API_BASE_URL}/api/public/documents/${document.doc_id}`
+  }
+
   const getSimplePDFUrl = () => {
-    const documentUrl = getDocumentUrl()
+    const documentUrl = getPublicDocumentUrl()
     const encodedUrl = encodeURIComponent(documentUrl)
     
     if (mode === 'edit') {
@@ -56,6 +62,11 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ isOpen, onClose, document, mode }
 
   const isPDFDocument = () => {
     return document.type === 'application/pdf' || document.filename.toLowerCase().endsWith('.pdf')
+  }
+
+  const openInNewTab = () => {
+    const simplePdfUrl = getSimplePDFUrl()
+    window.open(simplePdfUrl, '_blank', 'noopener,noreferrer')
   }
 
   const renderContent = () => {
@@ -109,23 +120,63 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ isOpen, onClose, document, mode }
       )
     }
 
+    // For PDF documents, show options to open in SimplePDF
     return (
-      <iframe
-        src={getSimplePDFUrl()}
-        className="w-full h-full border-0"
-        title={`${mode === 'edit' ? 'Edit' : 'View'} ${document.filename}`}
-        onLoad={() => setLoading(false)}
-        onError={() => {
-          setLoading(false)
-          setError('Failed to load PDF document')
-        }}
-      />
+      <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
+        <div className="text-center max-w-md">
+          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            {mode === 'edit' ? (
+              <Edit className="w-8 h-8 text-blue-600" />
+            ) : (
+              <Eye className="w-8 h-8 text-blue-600" />
+            )}
+          </div>
+          
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            {mode === 'edit' ? 'Edit PDF with SimplePDF' : 'View PDF with SimplePDF'}
+          </h3>
+          
+          <p className="text-gray-600 text-sm mb-6">
+            {mode === 'edit' 
+              ? 'Open this PDF in SimplePDF editor to add signatures, annotations, and make edits.'
+              : 'Open this PDF in SimplePDF viewer for an enhanced viewing experience.'
+            }
+          </p>
+
+          <div className="space-y-3">
+            <button
+              onClick={openInNewTab}
+              className="w-full inline-flex items-center justify-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <ExternalLink className="w-5 h-5 mr-2" />
+              {mode === 'edit' ? 'Open in SimplePDF Editor' : 'Open in SimplePDF Viewer'}
+            </button>
+            
+            <a
+              href={getDocumentUrl()}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full inline-flex items-center justify-center px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              <Eye className="w-5 h-5 mr-2" />
+              Download Original PDF
+            </a>
+          </div>
+
+          <div className="mt-6 p-4 bg-yellow-50 rounded-lg">
+            <p className="text-xs text-yellow-800">
+              <strong>Note:</strong> SimplePDF will open in a new tab due to security restrictions. 
+              You may need to allow pop-ups for this site.
+            </p>
+          </div>
+        </div>
+      </div>
     )
   }
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full h-full max-w-7xl max-h-[90vh] flex flex-col">
+      <div className="bg-white rounded-lg shadow-xl w-full h-full max-w-4xl max-h-[80vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b">
           <div className="flex items-center space-x-3">
@@ -150,7 +201,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ isOpen, onClose, document, mode }
         </div>
 
         {/* Content */}
-        <div className="flex-1 relative" style={{ height: '600px' }}>
+        <div className="flex-1 relative" style={{ height: '500px' }}>
           {renderContent()}
         </div>
 
@@ -160,25 +211,15 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ isOpen, onClose, document, mode }
             <div className="text-sm text-gray-500">
               {isPDFDocument() ? (
                 mode === 'edit' ? (
-                  <span>✏️ You can edit, sign, and annotate this PDF using SimplePDF</span>
+                  <span>✏️ SimplePDF editor provides full PDF editing capabilities</span>
                 ) : (
-                  <span>👁️ Viewing PDF document with SimplePDF</span>
+                  <span>👁️ SimplePDF viewer offers enhanced PDF viewing experience</span>
                 )
               ) : (
                 <span>📄 Non-PDF document - use download link to view</span>
               )}
             </div>
             <div className="flex space-x-2">
-              {isPDFDocument() && (
-                <a
-                  href={getDocumentUrl()}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-4 py-2 text-blue-600 hover:text-blue-800 transition-colors"
-                >
-                  Download Original
-                </a>
-              )}
               <button
                 onClick={onClose}
                 className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"

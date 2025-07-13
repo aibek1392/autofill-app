@@ -1,17 +1,29 @@
-# SimplePDF Integration
+# SimplePDF Integration - Updated Solution
 
-This document explains the SimplePDF integration that has been added to the React autofill form application.
+This document explains the SimplePDF integration that has been added to the React autofill form application, including solutions for Content Security Policy (CSP) and document accessibility issues.
 
 ## Overview
 
-SimplePDF is a powerful PDF editor that allows users to view, edit, sign, and annotate PDF documents directly in the browser. The integration provides seamless PDF editing capabilities within your React application.
+SimplePDF is a powerful PDF editor that allows users to view, edit, sign, and annotate PDF documents directly in the browser. Due to CSP restrictions and document accessibility requirements, the integration opens SimplePDF in a new tab rather than an embedded iframe.
+
+## Issues Resolved
+
+### 1. Content Security Policy (CSP) Error
+**Problem**: `Refused to frame 'https://embed.simplepdf.eu/' because an ancestor violates the following Content Security Policy directive: "frame-ancestors 'self'"`
+
+**Solution**: Instead of embedding SimplePDF in an iframe, the integration now opens SimplePDF in a new tab/window, which bypasses CSP restrictions.
+
+### 2. Document Accessibility (404 Error)
+**Problem**: SimplePDF couldn't access documents through authenticated endpoints.
+
+**Solution**: Added a public document endpoint (`/api/public/documents/{doc_id}`) that serves documents with proper CORS headers for SimplePDF access.
 
 ## Features Implemented
 
 ### 1. PDF Viewing
 - **View Button**: Click the blue eye icon next to any completed PDF document
-- **Full-screen Modal**: PDFs open in a responsive modal with SimplePDF viewer
-- **Native PDF Controls**: Zoom, navigate, and interact with PDF content
+- **New Tab Opening**: SimplePDF opens in a new tab with the document pre-loaded
+- **Document Validation**: Checks document accessibility before opening SimplePDF
 
 ### 2. PDF Editing
 - **Edit Button**: Click the green edit icon next to any PDF document
@@ -22,36 +34,33 @@ SimplePDF is a powerful PDF editor that allows users to view, edit, sign, and an
   - Drawing and highlighting tools
   - Page management
 
-### 3. Document Management
-- **Download Original**: Direct download link for the original PDF
-- **Auto-detection**: Automatically detects PDF vs non-PDF documents
-- **Error Handling**: Graceful handling of loading errors and non-PDF files
+### 3. Enhanced User Experience
+- **Pre-flight Checks**: Tests document accessibility before opening SimplePDF
+- **Error Handling**: Clear error messages if document access fails
+- **Fallback Options**: Direct download link if SimplePDF access fails
 
 ## Technical Implementation
 
 ### Components Added
 
-1. **PDFViewer Component** (`frontend/src/components/PDFViewer.tsx`)
-   - Modal-based PDF viewer/editor
-   - Integrates with SimplePDF embed URLs
-   - Handles both view and edit modes
-   - Supports fallback for non-PDF documents
+1. **SimplePDFEmbed Component** (`frontend/src/components/SimplePDFEmbed.tsx`)
+   - Modal-based interface for SimplePDF integration
+   - Pre-flight document accessibility testing
+   - New tab/window opening with proper error handling
+   - Supports both view and edit modes
 
-2. **Backend Download Endpoint** (`backend/main.py`)
-   - New endpoint: `GET /api/documents/{doc_id}/download`
-   - Secure document access with user authentication
-   - Proper MIME type handling
+2. **Backend Endpoints** (`backend/main.py`)
+   - **Authenticated**: `GET /api/documents/{doc_id}/download` (for direct downloads)
+   - **Public**: `GET /api/public/documents/{doc_id}` (for SimplePDF access)
+   - Proper CORS headers for cross-origin requests
 
-### Integration Details
+### Integration Flow
 
-#### SimplePDF URLs
-- **Viewer**: `https://embed.simplepdf.eu/viewer?open={encoded_document_url}`
-- **Editor**: `https://embed.simplepdf.eu/editor?open={encoded_document_url}`
-
-#### Authentication
-- Documents are served through authenticated endpoints
-- User permissions are verified before serving files
-- Secure token-based access to prevent unauthorized downloads
+1. **User clicks View/Edit button**
+2. **Modal opens** with SimplePDF integration options
+3. **Pre-flight check** tests document accessibility
+4. **SimplePDF opens** in new tab with document pre-loaded
+5. **Fallback available** if any step fails
 
 ## Usage Instructions
 
@@ -63,40 +72,25 @@ SimplePDF is a powerful PDF editor that allows users to view, edit, sign, and an
 
 2. **View a PDF**
    - Click the blue eye icon next to any completed PDF document
-   - The PDF will open in a full-screen viewer
-   - Use SimplePDF's native controls to navigate and interact
+   - A modal will appear with SimplePDF integration options
+   - Click "Open in SimplePDF Viewer" to open in a new tab
+   - Allow pop-ups if prompted by your browser
 
 3. **Edit a PDF**
    - Click the green edit icon next to any PDF document
-   - The PDF will open in SimplePDF's editor
-   - Add signatures, annotations, text, and more
-   - Changes are made in the SimplePDF interface
+   - A modal will appear with editing options
+   - Click "Open in SimplePDF Editor" to open in a new tab
+   - Use SimplePDF's full editing capabilities
 
 4. **Download Original**
-   - Click "Download Original" in the PDF viewer footer
+   - Click "Download Original PDF" in the modal
    - Downloads the original uploaded PDF file
 
 ### For Developers
 
-#### Adding View/Edit Buttons
+#### Using the SimplePDFEmbed Component
 ```tsx
-{document.processing_status === 'completed' && (
-  <>
-    <button onClick={() => handleViewDocument(doc)}>
-      <Eye className="w-4 h-4" />
-    </button>
-    {doc.type === 'application/pdf' && (
-      <button onClick={() => handleEditDocument(doc)}>
-        <Edit className="w-4 h-4" />
-      </button>
-    )}
-  </>
-)}
-```
-
-#### Using the PDFViewer Component
-```tsx
-<PDFViewer
+<SimplePDFEmbed
   isOpen={pdfViewerOpen}
   onClose={handleClosePdfViewer}
   document={selectedDocument}
@@ -104,11 +98,75 @@ SimplePDF is a powerful PDF editor that allows users to view, edit, sign, and an
 />
 ```
 
-## Dependencies
+#### Backend Endpoints
+```python
+# Public endpoint for SimplePDF access
+@app.get("/api/public/documents/{doc_id}")
+async def get_public_document(doc_id: str, token: Optional[str] = None):
+    # Serves documents with CORS headers for SimplePDF
+    
+# Authenticated endpoint for direct downloads
+@app.get("/api/documents/{doc_id}/download")
+async def download_document_by_id(doc_id: str, user_id: str, authorization: str):
+    # Serves documents with authentication
+```
 
-- **@simplepdf/react-embed-pdf**: React component for SimplePDF integration
-- **lucide-react**: Icons for UI elements
-- **Backend**: FastAPI with file serving capabilities
+## Security Considerations
+
+### Public Document Access
+- **Current Implementation**: Simple public endpoint for demo purposes
+- **Production Recommendation**: Implement token-based access with expiration
+- **File Validation**: Document existence and type validation before serving
+
+### Recommended Security Enhancements
+```python
+# Example of token-based access (not implemented)
+@app.get("/api/public/documents/{doc_id}")
+async def get_public_document(doc_id: str, token: str):
+    # Validate token
+    if not validate_temporary_token(token, doc_id):
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    
+    # Serve document
+    return FileResponse(file_path, headers=cors_headers)
+```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Pop-up Blocked**
+   - **Symptom**: SimplePDF doesn't open
+   - **Solution**: Allow pop-ups for your domain in browser settings
+   - **Alternative**: Right-click the button and select "Open in new tab"
+
+2. **Document Access Failed**
+   - **Symptom**: Error message in modal
+   - **Solution**: Check if document exists and backend is accessible
+   - **Debug**: Test the public endpoint directly in browser
+
+3. **SimplePDF Not Loading**
+   - **Symptom**: New tab opens but SimplePDF shows error
+   - **Solution**: Verify document is accessible via public endpoint
+   - **Check**: Network tab in browser dev tools for failed requests
+
+### Debug Steps
+
+1. **Test Public Endpoint**
+   ```bash
+   curl https://your-backend-url.com/api/public/documents/your-doc-id
+   ```
+
+2. **Check SimplePDF URL**
+   ```javascript
+   const publicUrl = 'https://your-backend-url.com/api/public/documents/your-doc-id'
+   const simplePdfUrl = `https://embed.simplepdf.eu/editor?open=${encodeURIComponent(publicUrl)}`
+   console.log('SimplePDF URL:', simplePdfUrl)
+   ```
+
+3. **Test in Browser**
+   - Open the public document URL directly
+   - Copy the SimplePDF URL and test in new tab
 
 ## Configuration
 
@@ -117,95 +175,60 @@ SimplePDF is a powerful PDF editor that allows users to view, edit, sign, and an
 # Frontend
 REACT_APP_API_URL=https://your-backend-url.com
 
-# Backend (existing)
+# Backend
 # No additional configuration needed for SimplePDF
+# Consider adding for production security:
+# SIMPLEPDF_TOKEN_SECRET=your-secret-key
+# SIMPLEPDF_TOKEN_EXPIRY=3600  # 1 hour
 ```
 
-### SimplePDF Service
-- Uses the free SimplePDF embed service
-- No API keys required for basic functionality
-- For advanced features, consider SimplePDF Pro
-
-## Security Considerations
-
-1. **Document Access Control**
-   - All documents are served through authenticated endpoints
-   - User ownership is verified before serving files
-   - Document URLs are temporary and secured
-
-2. **CORS Configuration**
-   - Backend allows SimplePDF domains for iframe embedding
-   - Proper CORS headers for cross-origin requests
-
-3. **File Validation**
-   - Document types are validated before serving
-   - File existence is verified before creating SimplePDF URLs
-
-## Troubleshooting
-
-### Common Issues
-
-1. **PDF Not Loading**
-   - Check if the document exists and is accessible
-   - Verify user authentication
-   - Check browser console for CORS errors
-
-2. **Edit Mode Not Working**
-   - Ensure the document is a valid PDF
-   - Check if SimplePDF service is accessible
-   - Verify document download URL is working
-
-3. **Iframe Issues**
-   - Some browsers may block iframes from external sources
-   - Check browser security settings
-   - Try in a different browser or incognito mode
-
-### Debug Steps
-
-1. **Check Document URL**
-   ```javascript
-   // Test the document download URL directly
-   const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://autofill-backend-a64u.onrender.com'
-   const documentUrl = `${API_BASE_URL}/documents/${doc_id}/download`
-   ```
-
-2. **Verify SimplePDF URL**
-   ```javascript
-   // Check the constructed SimplePDF URL
-   const simplePdfUrl = `https://embed.simplepdf.eu/editor?open=${encodeURIComponent(documentUrl)}`
-   ```
-
-3. **Test Backend Endpoint**
-   ```bash
-   curl -H "X-User-ID: your-user-id" \
-        -H "Authorization: Bearer your-token" \
-        https://your-backend-url.com/api/documents/doc-id/download
-   ```
+### CORS Configuration
+The backend automatically adds CORS headers for SimplePDF:
+```python
+headers = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET",
+    "Access-Control-Allow-Headers": "*",
+}
+```
 
 ## Future Enhancements
 
-1. **SimplePDF Pro Integration**
-   - Custom branding
-   - Advanced form features
+1. **Token-Based Security**
+   - Implement temporary access tokens
+   - Token expiration and validation
+   - User-specific access control
+
+2. **Enhanced Integration**
    - Webhook integration for document changes
+   - Save edited documents back to system
+   - Version control for document edits
 
-2. **Document Version Control**
-   - Save edited versions
-   - Track document history
-   - Merge changes back to original
+3. **User Experience**
+   - Progress indicators for document loading
+   - Better error messages and recovery options
+   - Keyboard shortcuts and accessibility improvements
 
-3. **Collaborative Editing**
-   - Real-time collaboration
-   - Comment system
-   - Review workflows
+## Migration Notes
+
+### From Previous Version
+- **Old**: Embedded iframe approach (had CSP issues)
+- **New**: New tab approach (resolves CSP issues)
+- **Breaking Changes**: None - same API, better user experience
+
+### Component Changes
+- **Replaced**: `PDFViewer` component
+- **New**: `SimplePDFEmbed` component
+- **Imports**: Update imports in Dashboard component
 
 ## Support
 
 For issues related to:
 - **SimplePDF functionality**: Visit [SimplePDF Documentation](https://simplepdf.eu/help)
-- **Integration issues**: Check the browser console and backend logs
-- **Authentication problems**: Verify Supabase configuration and user tokens
+- **Pop-up issues**: Check browser settings and allow pop-ups
+- **Document access**: Verify backend endpoints and CORS configuration
+- **Authentication problems**: Check user tokens and permissions
 
 ---
 
-**Note**: This integration uses SimplePDF's free embed service. For production applications with high volume or advanced features, consider upgrading to SimplePDF Pro. 
+**Note**: This solution uses SimplePDF's free embed service with new tab opening to avoid CSP restrictions. For production applications, consider implementing token-based security for the public document endpoint. 

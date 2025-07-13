@@ -795,6 +795,68 @@ async def download_document_by_id(
         logger.error(f"Document download failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to download document: {str(e)}")
 
+@app.get("/api/public/documents/{doc_id}")
+async def get_public_document(
+    doc_id: str,
+    token: Optional[str] = None
+):
+    """Public endpoint for document access with temporary token"""
+    try:
+        logger.info(f"Public document request for doc_id: {doc_id}")
+        
+        # For now, we'll make this a simple public endpoint
+        # In production, you'd want to implement token-based access
+        
+        # Look for the physical file
+        import glob
+        
+        # Search for files that match this doc_id (they're stored with UUID names)
+        possible_files = glob.glob(os.path.join(settings.UPLOAD_DIR, f"{doc_id}*"))
+        
+        if not possible_files:
+            logger.error(f"No physical file found for doc_id: {doc_id}")
+            raise HTTPException(status_code=404, detail="Document file not found")
+        
+        # Use the first matching file
+        file_path = possible_files[0]
+        
+        if not os.path.exists(file_path):
+            logger.error(f"File does not exist: {file_path}")
+            raise HTTPException(status_code=404, detail="Document file not found")
+        
+        # Determine the appropriate media type
+        file_extension = os.path.splitext(file_path)[1].lower()
+        media_type = 'application/octet-stream'  # Default
+        
+        if file_extension == '.pdf':
+            media_type = 'application/pdf'
+        elif file_extension in ['.jpg', '.jpeg']:
+            media_type = 'image/jpeg'
+        elif file_extension == '.png':
+            media_type = 'image/png'
+        
+        logger.info(f"Serving public file: {file_path} as {media_type}")
+        
+        # Add CORS headers for SimplePDF
+        headers = {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET",
+            "Access-Control-Allow-Headers": "*",
+        }
+        
+        return FileResponse(
+            file_path,
+            media_type=media_type,
+            headers=headers
+        )
+    
+    except HTTPException:
+        # Re-raise HTTPExceptions without modification
+        raise
+    except Exception as e:
+        logger.error(f"Public document access failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to access document: {str(e)}")
+
 @app.get("/api/filled-forms")
 async def get_filled_forms(user_id: Optional[str] = Header(None, alias="X-User-ID")):
     """Get all filled forms for the current user"""
