@@ -96,4 +96,4 @@ This project is licensed under the MIT License.
 
 ---
 
-**DocuChat** - Making document analysis as easy as having a conversation! 🚀 
+**DocuChat** - Making document analysis as easy as having a conversation!ASk the chat any information you need from document 🚀 
