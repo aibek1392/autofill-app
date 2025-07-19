@@ -298,12 +298,26 @@ const Dashboard: React.FC<DashboardProps> = ({ user = null }) => {
                             ? 'bg-green-100 text-green-800'
                             : doc.processing_status === 'processing'
                             ? 'bg-yellow-100 text-yellow-800'
+                            : doc.processing_status === 'uploaded'
+                            ? 'bg-blue-100 text-blue-800'
                             : 'bg-gray-100 text-gray-800'
                         }`}>
                           {doc.processing_status === 'completed' && <CheckCircle className="w-3 h-3 mr-1" />}
-                          {doc.processing_status === 'processing' && <Clock className="w-3 h-3 mr-1" />}
+                          {doc.processing_status === 'processing' && (
+                            <>
+                              <div className="w-3 h-3 border-2 border-yellow-600 border-t-transparent rounded-full animate-spin mr-1" />
+                              Processing...
+                            </>
+                          )}
+                          {doc.processing_status === 'uploaded' && (
+                            <>
+                              <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mr-1" />
+                              Starting...
+                            </>
+                          )}
                           {doc.processing_status === 'failed' && <AlertCircle className="w-3 h-3 mr-1" />}
-                          {doc.processing_status}
+                          {doc.processing_status === 'completed' && doc.processing_status}
+                          {doc.processing_status === 'failed' && doc.processing_status}
                         </span>
                         
                         {/* View and Edit buttons for documents */}

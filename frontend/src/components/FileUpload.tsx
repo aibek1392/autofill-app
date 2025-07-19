@@ -218,44 +218,6 @@ const FileUpload: React.FC<FileUploadProps> = ({
         </p>
       </div>
 
-      {/* Success Message - Show uploaded files */}
-      {uploadedFiles.length > 0 && (
-        <div className="mt-6">
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-medium text-green-900">
-                ✅ Upload Successful
-              </h3>
-              <button
-                onClick={() => setUploadedFiles([])}
-                className="text-green-700 hover:text-green-900 p-1"
-                title="Dismiss notification"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="space-y-2">
-              {uploadedFiles.map((file, index) => {
-                const processingStatus = getProcessingStatus(file.filename)
-                return (
-                  <div key={file.file_id} className="flex items-center justify-between p-2 bg-white rounded border">
-                    <div className="flex items-center space-x-3">
-                      {getProcessingStatusIcon(processingStatus)}
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">{file.filename}</p>
-                        <p className="text-xs text-gray-500">
-                          {file.size ? formatFileSize(file.size) : 'Size unknown'} • Status: {getStatusText(processingStatus)}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* File List */}
       {files.length > 0 && (
         <div className="mt-6">
