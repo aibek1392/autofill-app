@@ -255,7 +255,7 @@ const EmbeddedPDFEditor: React.FC<EmbeddedPDFEditorProps> = ({ isOpen, onClose, 
                   className="w-full h-full border-0"
                   title="PDF Editor"
                   onError={handleIframeError}
-                  sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-top-navigation"
+                  sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-top-navigation allow-downloads"
                 />
               ) : (
                 // Use PDF.js viewer for view mode or as fallback
@@ -265,7 +265,7 @@ const EmbeddedPDFEditor: React.FC<EmbeddedPDFEditorProps> = ({ isOpen, onClose, 
                   className="w-full h-full border-0"
                   title="PDF Viewer"
                   onError={handleIframeError}
-                  sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+                  sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-downloads"
                 />
               )}
             </>
