@@ -807,8 +807,11 @@ async def download_document_by_id(
                         # Add CORS headers for SimplePDF
                         headers = {
                             "Access-Control-Allow-Origin": "*",
-                            "Access-Control-Allow-Methods": "GET",
+                            "Access-Control-Allow-Methods": "GET, OPTIONS",
                             "Access-Control-Allow-Headers": "*",
+                            "Access-Control-Expose-Headers": "Content-Length, Content-Type",
+                            "Cross-Origin-Resource-Policy": "cross-origin",
+                            "Cross-Origin-Embedder-Policy": "unsafe-none"
                         }
                         
                         # Return the file content as a response
@@ -858,8 +861,11 @@ async def download_document_by_id(
         # Add CORS headers for SimplePDF
         headers = {
             "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
             "Access-Control-Allow-Headers": "*",
+            "Access-Control-Expose-Headers": "Content-Length, Content-Type",
+            "Cross-Origin-Resource-Policy": "cross-origin",
+            "Cross-Origin-Embedder-Policy": "unsafe-none"
         }
         
         return FileResponse(
@@ -887,21 +893,20 @@ async def get_public_document(
         # For now, we'll make this a simple public endpoint
         # In production, you'd want to implement token-based access
         
-        # Look for the physical file
-        import glob
-        
         # Try Supabase Storage first
         if supabase_client.has_supabase_credentials:
             try:
-                # Get the file from Supabase Storage
-                # Search for files that match this doc_id (they're stored with UUID names)
-                possible_files = glob.glob(os.path.join(settings.UPLOAD_DIR, f"{doc_id}*"))
+                # First, try to get document info from database to get the filename
+                client = supabase_client.admin_client
+                doc_result = client.table('uploaded_documents').select('filename').eq('doc_id', doc_id).execute()
                 
-                if possible_files:
-                    # Get the original filename from the local file to determine extension
-                    local_file_path = possible_files[0]
-                    file_extension = os.path.splitext(local_file_path)[1]
+                if doc_result.data:
+                    document = doc_result.data[0]
+                    filename = document['filename']
+                    file_extension = os.path.splitext(filename)[1]
                     safe_filename = f"{doc_id}{file_extension}"
+                    
+                    logger.info(f"Found document in database: {filename}, trying Supabase Storage: {safe_filename}")
                     
                     # Download from Supabase Storage
                     file_content = supabase_client.admin_client.storage.from_('documents').download(safe_filename)
@@ -921,8 +926,11 @@ async def get_public_document(
                         # Add CORS headers for SimplePDF
                         headers = {
                             "Access-Control-Allow-Origin": "*",
-                            "Access-Control-Allow-Methods": "GET",
+                            "Access-Control-Allow-Methods": "GET, OPTIONS",
                             "Access-Control-Allow-Headers": "*",
+                            "Access-Control-Expose-Headers": "Content-Length, Content-Type",
+                            "Cross-Origin-Resource-Policy": "cross-origin",
+                            "Cross-Origin-Embedder-Policy": "unsafe-none"
                         }
                         
                         # Return the file content as a response
@@ -935,13 +943,15 @@ async def get_public_document(
                         logger.warning(f"Public file not found in Supabase Storage: {safe_filename}")
                         
                 else:
-                    logger.warning(f"No local file found to determine extension for doc_id: {doc_id}")
+                    logger.warning(f"Document not found in database for doc_id: {doc_id}")
                     
             except Exception as storage_error:
                 logger.warning(f"Failed to retrieve public file from Supabase Storage: {str(storage_error)}")
                 # Fall back to local storage
         
         # Fallback to local storage
+        import glob
+        
         # Search for files that match this doc_id (they're stored with UUID names)
         possible_files = glob.glob(os.path.join(settings.UPLOAD_DIR, f"{doc_id}*"))
         
@@ -967,13 +977,16 @@ async def get_public_document(
         elif file_extension == '.png':
             media_type = 'image/png'
         
-        logger.info(f"Serving public file: {file_path} as {media_type}")
+        logger.info(f"Serving public file from local storage: {file_path} as {media_type}")
         
         # Add CORS headers for SimplePDF
         headers = {
             "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
             "Access-Control-Allow-Headers": "*",
+            "Access-Control-Expose-Headers": "Content-Length, Content-Type",
+            "Cross-Origin-Resource-Policy": "cross-origin",
+            "Cross-Origin-Embedder-Policy": "unsafe-none"
         }
         
         return FileResponse(
@@ -988,6 +1001,19 @@ async def get_public_document(
     except Exception as e:
         logger.error(f"Public document access failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to access document: {str(e)}")
+
+@app.options("/api/public/documents/{doc_id}")
+async def options_public_document(doc_id: str):
+    """Handle CORS preflight requests for public documents"""
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Max-Age": "86400",
+        }
+    )
 
 @app.get("/api/filled-forms")
 async def get_filled_forms(user_id: Optional[str] = Header(None, alias="X-User-ID")):

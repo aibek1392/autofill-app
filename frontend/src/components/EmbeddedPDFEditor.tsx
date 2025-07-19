@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { X, Eye, Edit, AlertTriangle, Download, ExternalLink, RefreshCw } from 'lucide-react'
+import { X, Eye, Edit, AlertTriangle, ExternalLink, Download, RefreshCw } from 'lucide-react'
 
 interface EmbeddedPDFEditorProps {
   isOpen: boolean
@@ -21,6 +21,7 @@ const EmbeddedPDFEditor: React.FC<EmbeddedPDFEditorProps> = ({ isOpen, onClose, 
   const [documentUrl, setDocumentUrl] = useState<string | null>(null)
   const [useSimplePDF, setUseSimplePDF] = useState(true)
   const [showFallback, setShowFallback] = useState(false)
+  const [documentContent, setDocumentContent] = useState<string | null>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
 
   const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000'
@@ -52,6 +53,10 @@ const EmbeddedPDFEditor: React.FC<EmbeddedPDFEditorProps> = ({ isOpen, onClose, 
       
       if (response.ok) {
         setDocumentUrl(publicUrl)
+        // Convert to blob URL to avoid CORS issues
+        const blob = await response.blob()
+        const blobUrl = URL.createObjectURL(blob)
+        setDocumentContent(blobUrl)
       } else {
         // Fallback to authenticated endpoint
         const authUrl = getAuthenticatedDocumentUrl()
@@ -63,6 +68,9 @@ const EmbeddedPDFEditor: React.FC<EmbeddedPDFEditorProps> = ({ isOpen, onClose, 
         
         if (authResponse.ok) {
           setDocumentUrl(authUrl)
+          const blob = await authResponse.blob()
+          const blobUrl = URL.createObjectURL(blob)
+          setDocumentContent(blobUrl)
         } else {
           throw new Error(`Document not accessible: ${response.status}`)
         }
@@ -88,11 +96,19 @@ const EmbeddedPDFEditor: React.FC<EmbeddedPDFEditorProps> = ({ isOpen, onClose, 
   }
 
   const getPDFJSUrl = () => {
-    if (!documentUrl) return null
+    if (!documentContent) return null
     
-    // Use PDF.js viewer from CDN
-    const encodedUrl = encodeURIComponent(documentUrl)
+    // Use PDF.js viewer with blob URL to avoid CORS issues
+    const encodedUrl = encodeURIComponent(documentContent)
     return `https://mozilla.github.io/pdf.js/web/viewer.html?file=${encodedUrl}`
+  }
+
+  const getLocalPDFJSUrl = () => {
+    if (!documentContent) return null
+    
+    // Alternative: Use a local PDF.js viewer or different CDN
+    const encodedUrl = encodeURIComponent(documentContent)
+    return `https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/web/viewer.html?file=${encodedUrl}`
   }
 
   const handleIframeError = () => {
@@ -121,6 +137,15 @@ const EmbeddedPDFEditor: React.FC<EmbeddedPDFEditorProps> = ({ isOpen, onClose, 
     return document?.type === 'application/pdf' || document?.filename.toLowerCase().endsWith('.pdf')
   }
 
+  // Cleanup blob URL on unmount
+  useEffect(() => {
+    return () => {
+      if (documentContent && documentContent.startsWith('blob:')) {
+        URL.revokeObjectURL(documentContent)
+      }
+    }
+  }, [documentContent])
+
   if (!isOpen || !document) return null
 
   if (!isPDFDocument()) {
@@ -137,7 +162,7 @@ const EmbeddedPDFEditor: React.FC<EmbeddedPDFEditorProps> = ({ isOpen, onClose, 
           <div className="text-center">
             <AlertTriangle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
             <p className="text-gray-600 mb-4">
-              This editor only supports PDF documents. This is a {document.type} file.
+              PDF viewer only supports PDF documents. This is a {document.type} file.
             </p>
             <a
               href={getAuthenticatedDocumentUrl()}
@@ -146,7 +171,7 @@ const EmbeddedPDFEditor: React.FC<EmbeddedPDFEditorProps> = ({ isOpen, onClose, 
               className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
             >
               <Download className="w-4 h-4 mr-2" />
-              Download File
+              Download & View
             </a>
           </div>
         </div>
@@ -156,44 +181,28 @@ const EmbeddedPDFEditor: React.FC<EmbeddedPDFEditorProps> = ({ isOpen, onClose, 
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl h-5/6 flex flex-col">
+      <div className="bg-white rounded-lg shadow-xl w-full h-full max-w-6xl max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b">
           <div className="flex items-center space-x-3">
             {mode === 'edit' ? (
-              <Edit className="w-6 h-6 text-blue-600" />
+              <Edit className="w-5 h-5 text-blue-600" />
             ) : (
-              <Eye className="w-6 h-6 text-gray-600" />
+              <Eye className="w-5 h-5 text-gray-600" />
             )}
             <div>
-              <h2 className="text-lg font-semibold">
+              <h2 className="text-lg font-semibold text-gray-900">
                 {mode === 'edit' ? 'Edit PDF' : 'View PDF'}
               </h2>
               <p className="text-sm text-gray-500">{document.filename}</p>
             </div>
           </div>
-          
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={handleRetry}
-              className="p-2 hover:bg-gray-100 rounded-full"
-              title="Retry"
-            >
-              <RefreshCw className="w-5 h-5" />
-            </button>
-            
-            <button
-              onClick={openInNewTab}
-              className="p-2 hover:bg-gray-100 rounded-full"
-              title="Open in new tab"
-            >
-              <ExternalLink className="w-5 h-5" />
-            </button>
-            
-            <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full">
-              <X className="w-5 h-5" />
-            </button>
-          </div>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+          >
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
         </div>
 
         {/* Content */}
@@ -225,12 +234,18 @@ const EmbeddedPDFEditor: React.FC<EmbeddedPDFEditorProps> = ({ isOpen, onClose, 
                   >
                     Switch to {useSimplePDF ? 'PDF.js' : 'SimplePDF'} Viewer
                   </button>
+                  <button
+                    onClick={openInNewTab}
+                    className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                  >
+                    Open in New Tab
+                  </button>
                 </div>
               </div>
             </div>
           )}
 
-          {!loading && !error && documentUrl && (
+          {!loading && !error && documentContent && (
             <>
               {useSimplePDF && mode === 'edit' ? (
                 // Try SimplePDF editor first for edit mode
@@ -250,6 +265,7 @@ const EmbeddedPDFEditor: React.FC<EmbeddedPDFEditorProps> = ({ isOpen, onClose, 
                   className="w-full h-full border-0"
                   title="PDF Viewer"
                   onError={handleIframeError}
+                  sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
                 />
               )}
             </>
