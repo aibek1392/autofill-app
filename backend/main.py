@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import List, Dict, Any, Optional
 from fastapi import FastAPI, File, UploadFile, HTTPException, Depends, BackgroundTasks, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, HTMLResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, HTMLResponse, StreamingResponse, Response
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel
@@ -294,7 +294,28 @@ async def upload_documents(
                 
                 # Verify file was written correctly
                 actual_size = os.path.getsize(file_path)
-                logger.info(f"File saved: {safe_filename}, expected size: {file.size}, actual size: {actual_size}")
+                logger.info(f"File saved locally: {safe_filename}, expected size: {file.size}, actual size: {actual_size}")
+                
+                # Upload to Supabase Storage if available
+                if supabase_client.has_supabase_credentials:
+                    try:
+                        # Read the file content for upload
+                        with open(file_path, "rb") as f:
+                            file_content = f.read()
+                        
+                        # Upload to Supabase Storage
+                        upload_response = supabase_client.admin_client.storage.from_('documents').upload(
+                            file=file_content,
+                            path=safe_filename,
+                            file_options={"content-type": file.content_type or "application/octet-stream"}
+                        )
+                        logger.info(f"File uploaded to Supabase Storage: {safe_filename}")
+                        
+                    except Exception as storage_error:
+                        logger.warning(f"Failed to upload to Supabase Storage: {str(storage_error)}")
+                        # Continue with local storage only
+                else:
+                    logger.info("Supabase Storage not available, using local storage only")
                 
             except Exception as e:
                 logger.error(f"Failed to save file {file.filename}: {str(e)}")
@@ -755,12 +776,64 @@ async def download_document_by_id(
         # Look for the physical file
         import glob
         
+        # Try Supabase Storage first
+        if supabase_client.has_supabase_credentials:
+            try:
+                # Get the file from Supabase Storage
+                # Search for files that match this doc_id (they're stored with UUID names)
+                possible_files = glob.glob(os.path.join(settings.UPLOAD_DIR, f"{doc_id}*"))
+                
+                if possible_files:
+                    # Get the original filename from the local file to determine extension
+                    local_file_path = possible_files[0]
+                    file_extension = os.path.splitext(local_file_path)[1]
+                    safe_filename = f"{doc_id}{file_extension}"
+                    
+                    # Download from Supabase Storage
+                    file_content = supabase_client.admin_client.storage.from_('documents').download(safe_filename)
+                    
+                    if file_content:
+                        logger.info(f"Public file retrieved from Supabase Storage: {safe_filename}")
+                        
+                        # Determine the appropriate media type
+                        media_type = 'application/octet-stream'  # Default
+                        if file_extension == '.pdf':
+                            media_type = 'application/pdf'
+                        elif file_extension in ['.jpg', '.jpeg']:
+                            media_type = 'image/jpeg'
+                        elif file_extension == '.png':
+                            media_type = 'image/png'
+                        
+                        # Add CORS headers for SimplePDF
+                        headers = {
+                            "Access-Control-Allow-Origin": "*",
+                            "Access-Control-Allow-Methods": "GET",
+                            "Access-Control-Allow-Headers": "*",
+                        }
+                        
+                        # Return the file content as a response
+                        return Response(
+                            content=file_content,
+                            media_type=media_type,
+                            headers=headers
+                        )
+                    else:
+                        logger.warning(f"Public file not found in Supabase Storage: {safe_filename}")
+                        
+                else:
+                    logger.warning(f"No local file found to determine extension for doc_id: {doc_id}")
+                    
+            except Exception as storage_error:
+                logger.warning(f"Failed to retrieve public file from Supabase Storage: {str(storage_error)}")
+                # Fall back to local storage
+        
+        # Fallback to local storage
         # Search for files that match this doc_id (they're stored with UUID names)
         possible_files = glob.glob(os.path.join(settings.UPLOAD_DIR, f"{doc_id}*"))
         
         if not possible_files:
             logger.error(f"No physical file found for doc_id: {doc_id}")
-            raise HTTPException(status_code=404, detail="Document file not found on disk")
+            raise HTTPException(status_code=404, detail="Document file not found")
         
         # Use the first matching file
         file_path = possible_files[0]
@@ -770,7 +843,7 @@ async def download_document_by_id(
             raise HTTPException(status_code=404, detail="Document file not found")
         
         # Determine the appropriate media type
-        file_extension = os.path.splitext(document['filename'])[1].lower()
+        file_extension = os.path.splitext(file_path)[1].lower()
         media_type = 'application/octet-stream'  # Default
         
         if file_extension == '.pdf':
@@ -780,12 +853,19 @@ async def download_document_by_id(
         elif file_extension == '.png':
             media_type = 'image/png'
         
-        logger.info(f"Serving file: {file_path} as {media_type}")
+        logger.info(f"Serving public file: {file_path} as {media_type}")
+        
+        # Add CORS headers for SimplePDF
+        headers = {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET",
+            "Access-Control-Allow-Headers": "*",
+        }
         
         return FileResponse(
             file_path,
             media_type=media_type,
-            filename=document['filename']
+            headers=headers
         )
     
     except HTTPException:
@@ -810,6 +890,58 @@ async def get_public_document(
         # Look for the physical file
         import glob
         
+        # Try Supabase Storage first
+        if supabase_client.has_supabase_credentials:
+            try:
+                # Get the file from Supabase Storage
+                # Search for files that match this doc_id (they're stored with UUID names)
+                possible_files = glob.glob(os.path.join(settings.UPLOAD_DIR, f"{doc_id}*"))
+                
+                if possible_files:
+                    # Get the original filename from the local file to determine extension
+                    local_file_path = possible_files[0]
+                    file_extension = os.path.splitext(local_file_path)[1]
+                    safe_filename = f"{doc_id}{file_extension}"
+                    
+                    # Download from Supabase Storage
+                    file_content = supabase_client.admin_client.storage.from_('documents').download(safe_filename)
+                    
+                    if file_content:
+                        logger.info(f"Public file retrieved from Supabase Storage: {safe_filename}")
+                        
+                        # Determine the appropriate media type
+                        media_type = 'application/octet-stream'  # Default
+                        if file_extension == '.pdf':
+                            media_type = 'application/pdf'
+                        elif file_extension in ['.jpg', '.jpeg']:
+                            media_type = 'image/jpeg'
+                        elif file_extension == '.png':
+                            media_type = 'image/png'
+                        
+                        # Add CORS headers for SimplePDF
+                        headers = {
+                            "Access-Control-Allow-Origin": "*",
+                            "Access-Control-Allow-Methods": "GET",
+                            "Access-Control-Allow-Headers": "*",
+                        }
+                        
+                        # Return the file content as a response
+                        return Response(
+                            content=file_content,
+                            media_type=media_type,
+                            headers=headers
+                        )
+                    else:
+                        logger.warning(f"Public file not found in Supabase Storage: {safe_filename}")
+                        
+                else:
+                    logger.warning(f"No local file found to determine extension for doc_id: {doc_id}")
+                    
+            except Exception as storage_error:
+                logger.warning(f"Failed to retrieve public file from Supabase Storage: {str(storage_error)}")
+                # Fall back to local storage
+        
+        # Fallback to local storage
         # Search for files that match this doc_id (they're stored with UUID names)
         possible_files = glob.glob(os.path.join(settings.UPLOAD_DIR, f"{doc_id}*"))
         
