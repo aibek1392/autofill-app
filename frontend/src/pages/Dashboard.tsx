@@ -187,12 +187,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user = null }) => {
   }
 
   // PDF Viewer handlers
-  const handleViewDocument = (document: Document) => {
-    setSelectedDocument(document)
-    setPdfViewerMode('view')
-    setPdfViewerOpen(true)
-  }
-
   const handleEditDocument = (document: Document) => {
     setSelectedDocument(document)
     setPdfViewerMode('edit')
@@ -320,27 +314,15 @@ const Dashboard: React.FC<DashboardProps> = ({ user = null }) => {
                           {doc.processing_status === 'failed' && doc.processing_status}
                         </span>
                         
-                        {/* View and Edit buttons for documents */}
+                        {/* Edit button for documents */}
                         {doc.processing_status === 'completed' && (
-                          <>
-                            <button
-                              onClick={() => handleViewDocument(doc)}
-                              className="p-1 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 hover:text-blue-700 transition-colors"
-                              title={doc.type === 'application/pdf' ? 'View PDF with SimplePDF' : 'View/Download Document'}
-                            >
-                              <Eye className="w-4 h-4" />
-                            </button>
-                            {/* Edit button only for PDF documents */}
-                            {doc.type === 'application/pdf' && (
-                              <button
-                                onClick={() => handleEditDocument(doc)}
-                                className="p-1 rounded-full bg-green-100 text-green-600 hover:bg-green-200 hover:text-green-700 transition-colors"
-                                title="Edit PDF with SimplePDF"
-                              >
-                                <Edit className="w-4 h-4" />
-                              </button>
-                            )}
-                          </>
+                          <button
+                            onClick={() => handleEditDocument(doc)}
+                            className="p-1 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 hover:text-blue-700 transition-colors"
+                            title={doc.type === 'application/pdf' ? 'View/Edit PDF' : 'View Document'}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
                         )}
                         
                         <button
