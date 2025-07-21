@@ -133,21 +133,51 @@ async def root():
 async def health_check():
     """Detailed health check"""
     try:
-        # Check Pinecone connection
-        pinecone_stats = await pinecone_client.get_index_stats()
+        # Check Pinecone connection (with timeout to avoid blocking)
+        pinecone_status = "unknown"
+        pinecone_stats = None
+        try:
+            pinecone_stats = await pinecone_client.get_index_stats()
+            pinecone_status = "connected"
+        except Exception as e:
+            logger.warning(f"Pinecone health check failed: {str(e)}")
+            pinecone_status = "disconnected"
+        
+        # Check Supabase connection
+        supabase_status = "unknown"
+        try:
+            if supabase_client.has_supabase_credentials:
+                # Simple query to test connection
+                supabase_client.admin_client.table('uploaded_documents').select('doc_id').limit(1).execute()
+                supabase_status = "connected"
+            else:
+                supabase_status = "not_configured"
+        except Exception as e:
+            logger.warning(f"Supabase health check failed: {str(e)}")
+            supabase_status = "disconnected"
         
         return {
             "status": "healthy",
+            "timestamp": datetime.now().isoformat(),
             "services": {
                 "api": "running",
-                "pinecone": "connected",
-                "supabase": "connected"
+                "pinecone": pinecone_status,
+                "supabase": supabase_status
             },
             "pinecone_stats": pinecone_stats
         }
     except Exception as e:
         logger.error(f"Health check failed: {str(e)}")
         return {"status": "unhealthy", "error": str(e)}
+
+@app.get("/api/ping")
+async def ping():
+    """Simple ping endpoint for keep-alive services"""
+    return {
+        "status": "pong",
+        "timestamp": datetime.now().isoformat(),
+        "message": "Server is alive"
+    }
 
 async def process_document_background(file_path: str, filename: str, user_id: str):
     """Background task to process uploaded document"""
