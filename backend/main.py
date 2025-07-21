@@ -577,6 +577,19 @@ async def delete_document(
         
         logger.info(f"Document deletion completed successfully - doc_id: {doc_id}, filename: {document['filename']}")
         
+        # Step 3.5: Delete from Supabase Storage bucket
+        try:
+            if supabase_client.has_supabase_credentials:
+                filename = document['filename']
+                file_extension = os.path.splitext(filename)[1]
+                safe_filename = f"{doc_id}{file_extension}"
+                logger.info(f"Deleting file from Supabase Storage: {safe_filename}")
+                delete_result = supabase_client.admin_client.storage.from_('documents').remove(safe_filename)
+                logger.info(f"Deleted file from Supabase Storage: {safe_filename}")
+        except Exception as e:
+            logger.warning(f"Failed to delete file from Supabase Storage: {str(e)}")
+            # Continue with other deletions
+        
         return {
             "message": "Document deleted successfully",
             "doc_id": doc_id,
