@@ -115,10 +115,38 @@ class PineconeClient:
             # Extract IDs and delete
             ids_to_delete = [match.id for match in results.matches]
             if ids_to_delete:
-                self.index.delete(ids=ids_to_delete)
+                # Delete in batches to avoid timeout
+                batch_size = 100
+                for i in range(0, len(ids_to_delete), batch_size):
+                    batch = ids_to_delete[i:i + batch_size]
+                    self.index.delete(ids=batch)
+                    logger.info(f"Deleted batch {i//batch_size + 1}: {len(batch)} vectors")
+                
                 logger.info(f"Document vectors deleted - doc_id: {doc_id}, count: {len(ids_to_delete)}")
+                
+                # Wait a moment for deletion to propagate
+                import asyncio
+                await asyncio.sleep(1)
+                
+                # Verify deletion
+                verify_results = self.index.query(
+                    vector=[0] * 1536,
+                    filter={'doc_id': doc_id},
+                    top_k=10,
+                    include_metadata=False,
+                    include_values=False
+                )
+                
+                if verify_results.matches:
+                    logger.warning(f"Deletion verification failed - {len(verify_results.matches)} vectors still exist for doc_id: {doc_id}")
+                    return False
+                else:
+                    logger.info(f"Deletion verified - all vectors removed for doc_id: {doc_id}")
+                    return True
+            else:
+                logger.info(f"No vectors found to delete for doc_id: {doc_id}")
+                return True
             
-            return True
         except Exception as e:
             logger.error(f"Failed to delete document vectors: {str(e)}")
             raise
@@ -167,6 +195,100 @@ class PineconeClient:
         except Exception as e:
             logger.error(f"Failed to search vectors with filter: {str(e)}")
             raise
+
+    async def delete_document_vectors_comprehensive(self, doc_id: str, user_id: str, filename: str) -> bool:
+        """Comprehensive deletion of document vectors using multiple strategies"""
+        try:
+            logger.info(f"Starting comprehensive deletion for doc_id: {doc_id}, user_id: {user_id}, filename: {filename}")
+            
+            total_deleted = 0
+            
+            # Strategy 1: Delete by doc_id
+            try:
+                doc_vectors = self.index.query(
+                    vector=[0.0] * 1536,
+                    filter={'doc_id': doc_id},
+                    top_k=10000,
+                    include_metadata=False,
+                    include_values=False
+                )
+                
+                if doc_vectors.matches:
+                    doc_ids = [match.id for match in doc_vectors.matches]
+                    self.index.delete(ids=doc_ids)
+                    total_deleted += len(doc_ids)
+                    logger.info(f"Strategy 1: Deleted {len(doc_ids)} vectors by doc_id")
+                else:
+                    logger.info("Strategy 1: No vectors found by doc_id")
+                    
+            except Exception as e:
+                logger.warning(f"Strategy 1 failed: {str(e)}")
+            
+            # Strategy 2: Delete by user_id + filename
+            try:
+                user_filename_vectors = self.index.query(
+                    vector=[0.0] * 1536,
+                    filter={'user_id': user_id, 'filename': filename},
+                    top_k=10000,
+                    include_metadata=False,
+                    include_values=False
+                )
+                
+                if user_filename_vectors.matches:
+                    user_filename_ids = [match.id for match in user_filename_vectors.matches]
+                    self.index.delete(ids=user_filename_ids)
+                    total_deleted += len(user_filename_ids)
+                    logger.info(f"Strategy 2: Deleted {len(user_filename_ids)} vectors by user_id+filename")
+                else:
+                    logger.info("Strategy 2: No vectors found by user_id+filename")
+                    
+            except Exception as e:
+                logger.warning(f"Strategy 2 failed: {str(e)}")
+            
+            # Strategy 3: Delete by filename only (fallback)
+            try:
+                filename_vectors = self.index.query(
+                    vector=[0.0] * 1536,
+                    filter={'filename': filename},
+                    top_k=10000,
+                    include_metadata=False,
+                    include_values=False
+                )
+                
+                if filename_vectors.matches:
+                    filename_ids = [match.id for match in filename_vectors.matches]
+                    self.index.delete(ids=filename_ids)
+                    total_deleted += len(filename_ids)
+                    logger.info(f"Strategy 3: Deleted {len(filename_ids)} vectors by filename only")
+                else:
+                    logger.info("Strategy 3: No vectors found by filename only")
+                    
+            except Exception as e:
+                logger.warning(f"Strategy 3 failed: {str(e)}")
+            
+            # Wait for deletion to propagate
+            import asyncio
+            await asyncio.sleep(2)
+            
+            # Final verification
+            remaining_vectors = self.index.query(
+                vector=[0.0] * 1536,
+                filter={'doc_id': doc_id},
+                top_k=10,
+                include_metadata=False,
+                include_values=False
+            )
+            
+            if remaining_vectors.matches:
+                logger.warning(f"Deletion incomplete - {len(remaining_vectors.matches)} vectors still exist")
+                return False
+            else:
+                logger.info(f"Comprehensive deletion successful - {total_deleted} vectors deleted")
+                return True
+                
+        except Exception as e:
+            logger.error(f"Comprehensive deletion failed: {str(e)}")
+            return False
 
 # Global instance
 pinecone_client = PineconeClient() 

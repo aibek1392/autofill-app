@@ -515,40 +515,21 @@ async def delete_document(
             logger.error(f"Failed to get document info: {str(e)}")
             raise HTTPException(status_code=500, detail="Failed to retrieve document information")
         
-        # Step 1: Delete from Pinecone (vectors)
+        # Step 1: Delete from Pinecone (vectors) - Comprehensive deletion
         try:
             logger.info(f"Deleting vectors from Pinecone for doc_id: {doc_id}")
             
-            # First, try to delete using the database doc_id
-            await pinecone_client.delete_document_vectors(doc_id)
+            # Use comprehensive deletion method
+            deletion_success = await pinecone_client.delete_document_vectors_comprehensive(
+                doc_id=doc_id,
+                user_id=user_id,
+                filename=document['filename']
+            )
             
-            # Also check for any vectors that might have been created with a different doc_id
-            # This can happen if there was a doc_id mismatch during processing
-            try:
-                # Query to find any vectors associated with this user and filename
-                # that might have a different doc_id
-                query_response = pinecone_client.index.query(
-                    vector=[0.0] * 1536,  # Dummy vector
-                    filter={
-                        'user_id': user_id,
-                        'filename': document['filename']
-                    },
-                    top_k=10000,  # Large number to get all
-                    include_metadata=True,
-                    include_values=False
-                )
-                
-                # Delete any remaining vectors for this user/filename combination
-                remaining_ids = [match.id for match in query_response.matches]
-                if remaining_ids:
-                    logger.info(f"Found {len(remaining_ids)} additional vectors to delete for user {user_id}, filename {document['filename']}")
-                    pinecone_client.index.delete(ids=remaining_ids)
-                    logger.info(f"Deleted {len(remaining_ids)} additional vectors")
-                
-            except Exception as cleanup_error:
-                logger.warning(f"Failed to clean up additional vectors: {str(cleanup_error)}")
-            
-            logger.info(f"Successfully deleted vectors from Pinecone for doc_id: {doc_id}")
+            if deletion_success:
+                logger.info(f"Successfully completed vector deletion for doc_id: {doc_id}")
+            else:
+                logger.warning(f"Vector deletion may be incomplete for doc_id: {doc_id}")
                 
         except Exception as e:
             logger.warning(f"Failed to delete vectors from Pinecone: {str(e)}")
