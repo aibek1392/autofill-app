@@ -180,7 +180,12 @@ const Chat: React.FC<ChatProps> = ({ onNewMessage }) => {
       {/* Header */}
       <div className="flex-shrink-0 flex items-center justify-between p-4 border-b border-gray-200">
         <div className="flex items-center">
-          <MessageCircle className="w-5 h-5 text-primary-600 mr-2" />
+          <div className="relative mr-2">
+            <div className="w-5 h-5 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center">
+              <div className="w-2.5 h-2.5 bg-white rounded-full"></div>
+            </div>
+            <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+          </div>
           <h3 className="font-medium text-gray-900">Document Chat</h3>
         </div>
         <div className="flex items-center space-x-2">
@@ -226,14 +231,17 @@ const Chat: React.FC<ChatProps> = ({ onNewMessage }) => {
                   flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center
                   ${message.type === 'user' 
                     ? 'bg-primary-600 text-white' 
-                    : 'bg-gray-200 text-gray-600'
+                    : 'bg-gradient-to-r from-blue-600 to-purple-600 text-white'
                   }
                 `}
               >
                 {message.type === 'user' ? (
                   <User className="w-4 h-4" />
                 ) : (
-                  <Bot className="w-4 h-4" />
+                  <div className="relative">
+                    <div className="w-3 h-3 bg-white rounded-full"></div>
+                    <div className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></div>
+                  </div>
                 )}
               </div>
 

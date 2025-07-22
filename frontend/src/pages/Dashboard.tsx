@@ -28,6 +28,34 @@ import {
   Edit
 } from 'lucide-react'
 
+// Custom DocuChat Icon Component
+const DocuChatIcon: React.FC<{ className?: string; size?: number }> = ({ className = "", size = 24 }) => {
+  return (
+    <div className={`relative ${className}`} style={{ width: size, height: size }}>
+      {/* Document Base */}
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-lg transform rotate-3"></div>
+      
+      {/* Document Fold */}
+      <div className="absolute top-0 right-0 w-3 h-3 bg-gradient-to-br from-blue-400 to-blue-500 rounded-bl-lg transform rotate-45 origin-top-right"></div>
+      
+      {/* Document Lines */}
+      <div className="absolute top-3 left-2 right-4 space-y-1">
+        <div className="h-0.5 bg-white/80 rounded-full"></div>
+        <div className="h-0.5 bg-white/60 rounded-full w-3/4"></div>
+        <div className="h-0.5 bg-white/40 rounded-full w-1/2"></div>
+      </div>
+      
+      {/* Chat Bubble */}
+      <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center shadow-lg">
+        <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
+      </div>
+      
+      {/* AI Pulse */}
+      <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+    </div>
+  )
+}
+
 interface DashboardProps {
   user?: User | null
 }
@@ -226,7 +254,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user = null }) => {
   }
 
   const navigation = [
-    { id: 'upload', name: 'Upload Documents', icon: Upload },
+    { id: 'upload', name: 'Upload & Chat', icon: Upload },
     { id: 'chat', name: 'Document Chat', icon: MessageCircle },
     { id: 'forms', name: 'PDF Form Autofill', icon: FileText },
     { id: 'web-autofill', name: 'Web Form Autofill', icon: Globe },
@@ -238,10 +266,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user = null }) => {
       case 'upload':
         return (
           <div className="space-y-6">
-            <div>
+            <div className="text-center">
+              <div className="flex justify-center mb-4">
+                <DocuChatIcon size={48} className="text-blue-600" />
+              </div>
               <h1 className="text-2xl font-bold text-gray-900 mb-2">Upload Documents</h1>
-              <p className="text-gray-600">
-                Upload your PDF, JPG, JPEG, or PNG documents to make them searchable and use them for form autofill.
+              <p className="text-gray-600 max-w-2xl mx-auto">
+                Upload your PDF, JPG, JPEG, or PNG documents and ask our AI assistant to help you find information from your uploaded documents and answer questions about them. PDFs can also be edited with our integrated editor for signing, annotating, and filling forms.
               </p>
             </div>
             
@@ -274,6 +305,25 @@ const Dashboard: React.FC<DashboardProps> = ({ user = null }) => {
             {documents.length > 0 && (
               <div className="card p-6">
                 <h3 className="text-lg font-medium text-gray-900 mb-4">Your Documents</h3>
+                
+                {/* SimplePDF Capabilities Info */}
+                <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-start space-x-2">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
+                    <div className="text-sm text-blue-800">
+                      <p className="font-medium mb-1">📄 PDF Editor Features:</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-1 text-xs">
+                        <span>• Sign documents electronically</span>
+                        <span>• Add text, images, and shapes</span>
+                        <span>• Fill out forms and checkboxes</span>
+                        <span>• Highlight and annotate text</span>
+                        <span>• Add stamps and watermarks</span>
+                        <span>• Merge and split PDFs</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
                 <div className="space-y-3">
                   {documents.slice(0, 5).map((doc) => (
                     <div key={doc.doc_id} className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
@@ -319,7 +369,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user = null }) => {
                           <button
                             onClick={() => handleEditDocument(doc)}
                             className="p-1 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 hover:text-blue-700 transition-colors"
-                            title={doc.type === 'application/pdf' ? 'View/Edit PDF' : 'View Document'}
+                            title={doc.type === 'application/pdf' ? 'Open PDF Editor - Sign, annotate, fill forms, add images' : 'View Document'}
                           >
                             <Edit className="w-4 h-4" />
                           </button>
@@ -584,8 +634,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user = null }) => {
       `}>
         <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200">
           <div className="flex items-center space-x-2">
-            <FileText className="w-8 h-8 text-primary-600" />
-            <span className="text-xl font-bold text-gray-900">AutoFill</span>
+            <DocuChatIcon size={32} className="text-primary-600" />
+            <span className="text-xl font-bold text-gray-900">DocuChat</span>
           </div>
           <button
             onClick={() => setSidebarOpen(false)}
@@ -670,10 +720,16 @@ const Dashboard: React.FC<DashboardProps> = ({ user = null }) => {
               </div>
               <button
                 onClick={() => setChatPanelOpen(!chatPanelOpen)}
-                className="p-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
-                title={chatPanelOpen ? 'Close Chat' : 'Open Chat'}
+                className="flex items-center space-x-2 px-4 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
+                title={chatPanelOpen ? 'Close AI Assistant' : 'Open AI Assistant'}
               >
-                <MessageCircle className="w-4 h-4" />
+                <div className="relative">
+                  <div className="w-4 h-4 bg-white rounded-full flex items-center justify-center">
+                    <div className="w-2 h-2 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full"></div>
+                  </div>
+                  <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                </div>
+                <span className="text-sm font-medium">AI Assistant</span>
               </button>
             </div>
           </div>

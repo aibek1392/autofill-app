@@ -92,15 +92,27 @@ const ResizableChatPanel: React.FC<ResizableChatPanelProps> = ({
       <button
         onClick={onToggle}
         className={`
-          fixed top-4 right-4 z-50 p-2 rounded-lg shadow-lg transition-all duration-300 ease-in-out
+          fixed top-4 right-4 z-50 flex items-center space-x-2 px-3 py-2 rounded-lg shadow-lg transition-all duration-300 ease-in-out
           ${isOpen 
             ? 'bg-gray-800 text-white hover:bg-gray-700' 
-            : 'bg-blue-600 text-white hover:bg-blue-700'
+            : 'bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700 shadow-xl hover:shadow-2xl transform hover:scale-105'
           }
         `}
-        title={isOpen ? 'Close Chat' : 'Open Chat'}
+        title={isOpen ? 'Close AI Assistant' : 'Open AI Assistant'}
       >
-        {isOpen ? <X className="w-5 h-5" /> : <MessageCircle className="w-5 h-5" />}
+        {isOpen ? (
+          <X className="w-4 h-4" />
+        ) : (
+          <>
+            <div className="relative">
+              <div className="w-4 h-4 bg-white rounded-full flex items-center justify-center">
+                <div className="w-2 h-2 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full"></div>
+              </div>
+              <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+            </div>
+            <span className="text-sm font-medium">AI</span>
+          </>
+        )}
       </button>
 
       {/* Chat Panel */}
@@ -116,7 +128,12 @@ const ResizableChatPanel: React.FC<ResizableChatPanelProps> = ({
         {/* Header */}
         <div className="flex-shrink-0 flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50">
           <div className="flex items-center space-x-2">
-            <MessageCircle className="w-5 h-5 text-blue-600" />
+            <div className="relative">
+              <div className="w-5 h-5 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center">
+                <div className="w-2.5 h-2.5 bg-white rounded-full"></div>
+              </div>
+              <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+            </div>
             <h3 className="font-medium text-gray-900">AI Assistant</h3>
           </div>
           <button

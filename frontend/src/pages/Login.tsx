@@ -1,6 +1,34 @@
-import React, { useState } from 'react'
-import { supabase } from '../lib/supabase'
-import { FileText, LogIn, UserPlus, Mail, Lock, AlertCircle, Loader2 } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { supabase } from '../lib'
+import { FileText, Mail, Lock, LogIn, UserPlus, AlertCircle, Loader2 } from 'lucide-react'
+
+// Custom DocuChat Icon Component
+const DocuChatIcon: React.FC<{ className?: string; size?: number }> = ({ className = "", size = 24 }) => {
+  return (
+    <div className={`relative ${className}`} style={{ width: size, height: size }}>
+      {/* Document Base */}
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-lg transform rotate-3"></div>
+      
+      {/* Document Fold */}
+      <div className="absolute top-0 right-0 w-3 h-3 bg-gradient-to-br from-blue-400 to-blue-500 rounded-bl-lg transform rotate-45 origin-top-right"></div>
+      
+      {/* Document Lines */}
+      <div className="absolute top-3 left-2 right-4 space-y-1">
+        <div className="h-0.5 bg-white/80 rounded-full"></div>
+        <div className="h-0.5 bg-white/60 rounded-full w-3/4"></div>
+        <div className="h-0.5 bg-white/40 rounded-full w-1/2"></div>
+      </div>
+      
+      {/* Chat Bubble */}
+      <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center shadow-lg">
+        <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
+      </div>
+      
+      {/* AI Pulse */}
+      <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+    </div>
+  )
+}
 
 const Login: React.FC = () => {
   const [isSignUp, setIsSignUp] = useState(false)
@@ -19,7 +47,7 @@ const Login: React.FC = () => {
             <div className="flex justify-center">
               <div className="flex items-center space-x-2">
                 <FileText className="w-10 h-10 text-primary-600" />
-                <span className="text-2xl font-bold text-gray-900">AutoFill</span>
+                <span className="text-2xl font-bold text-gray-900">DocuChat</span>
               </div>
             </div>
             <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
@@ -149,8 +177,8 @@ REACT_APP_SUPABASE_ANON_KEY=your_supabase_key`}
         <div className="text-center">
           <div className="flex justify-center">
             <div className="flex items-center space-x-2">
-              <FileText className="w-10 h-10 text-primary-600" />
-              <span className="text-2xl font-bold text-gray-900">AutoFill</span>
+              <DocuChatIcon size={40} className="text-primary-600" />
+              <span className="text-2xl font-bold text-gray-900">DocuChat</span>
             </div>
           </div>
           <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
@@ -158,8 +186,8 @@ REACT_APP_SUPABASE_ANON_KEY=your_supabase_key`}
           </h2>
           <p className="mt-2 text-sm text-gray-600">
             {isSignUp 
-              ? 'Start using AI to fill your forms automatically' 
-              : 'Access your documents and autofill forms with AI'
+              ? 'Start using AI to chat with your documents' 
+              : 'Access your documents and chat with AI assistant'
             }
           </p>
         </div>
@@ -304,7 +332,7 @@ REACT_APP_SUPABASE_ANON_KEY=your_supabase_key`}
 
         {/* Features */}
         <div className="text-center">
-          <p className="text-sm text-gray-500 mb-4">What you can do with AutoFill:</p>
+          <p className="text-sm text-gray-500 mb-4">What you can do with DocuChat:</p>
           <div className="space-y-2 text-sm text-gray-600">
             <div className="flex items-center justify-center space-x-2">
               <div className="w-2 h-2 bg-primary-500 rounded-full"></div>
@@ -316,7 +344,7 @@ REACT_APP_SUPABASE_ANON_KEY=your_supabase_key`}
             </div>
             <div className="flex items-center justify-center space-x-2">
               <div className="w-2 h-2 bg-primary-500 rounded-full"></div>
-              <span>Automatically fill PDF forms using your data</span>
+              <span>Chat with AI assistant about your documents</span>
             </div>
           </div>
         </div>

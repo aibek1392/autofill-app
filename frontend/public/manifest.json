@@ -1,7 +1,7 @@
 {
-  "short_name": "AutoFill Forms",
-  "name": "AI AutoFill Form Application",
-  "description": "AI-powered form filling application with document processing",
+  "short_name": "DocuChat",
+  "name": "DocuChat - AI Document Chat",
+  "description": "AI-powered document chat and processing application",
   "icons": [
     {
       "src": "favicon.ico",
