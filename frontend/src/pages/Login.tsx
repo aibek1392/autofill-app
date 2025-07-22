@@ -111,15 +111,33 @@ REACT_APP_SUPABASE_ANON_KEY=your_supabase_key`}
     }
     
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
+      console.log('🔐 Initiating Google OAuth...')
+      console.log('Current origin:', window.location.origin)
+      
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location.origin
+          redirectTo: `${window.location.origin}/dashboard`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          }
         }
       })
-      if (error) throw error
+      
+      if (error) {
+        console.error('❌ Google OAuth error:', error)
+        throw error
+      }
+      
+      console.log('✅ Google OAuth initiated successfully:', data)
+      
+      // The user will be redirected to Google's OAuth page
+      // No need to set loading to false as the page will redirect
+      
     } catch (error: any) {
-      setError(error.message)
+      console.error('❌ Google OAuth failed:', error)
+      setError(error.message || 'Failed to sign in with Google')
       setLoading(false)
     }
   }
