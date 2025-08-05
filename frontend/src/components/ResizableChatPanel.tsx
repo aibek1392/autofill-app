@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
-import { MessageCircle, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import Chat from './Chat'
 
 interface ResizableChatPanelProps {

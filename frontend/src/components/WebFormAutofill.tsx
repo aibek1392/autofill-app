@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Copy, Check, ExternalLink, Loader2, AlertCircle, CheckCircle, Globe, Code, Bookmark } from 'lucide-react'
+import { Copy, ExternalLink } from 'lucide-react'
 import { getUserId } from '../lib/api'  // Import the centralized getUserId function
 
 interface WebFormAutofillProps {

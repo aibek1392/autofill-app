@@ -24,7 +24,6 @@ import {
   CheckCircle,
   AlertCircle,
   Globe,
-  Eye,
   Edit
 } from 'lucide-react'
 
