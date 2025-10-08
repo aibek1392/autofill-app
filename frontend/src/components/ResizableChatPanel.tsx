@@ -129,34 +129,35 @@ const ResizableChatPanel: React.FC<ResizableChatPanelProps> = ({
         style={{ width: isMobile ? '100%' : `${width}px` }}
       >
         {/* Header */}
-        <div className="flex-shrink-0 flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50">
-          <div className="flex items-center space-x-2">
-            <div className="relative">
+        <div className="flex-shrink-0 flex items-center justify-between p-3 sm:p-4 border-b border-gray-200 bg-gray-50">
+          <div className="flex items-center space-x-2 min-w-0 flex-1">
+            {/* AI Assistant Icon - Hidden on mobile to save space */}
+            <div className="relative hidden sm:block">
               <div className="w-5 h-5 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center">
                 <div className="w-2.5 h-2.5 bg-white rounded-full"></div>
               </div>
               <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
             </div>
-            <h3 className="font-medium text-gray-900">
+            <h3 className="font-medium text-gray-900 truncate text-sm sm:text-base">
               {showHistory ? 'Chat History' : 'AI Assistant'}
             </h3>
           </div>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-1 sm:space-x-2 flex-shrink-0">
             <button
               onClick={() => setShowHistory(!showHistory)}
-              className={`p-1 rounded-md transition-colors ${
+              className={`p-2 sm:p-1 rounded-md transition-colors ${
                 showHistory ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-200 text-gray-500'
               }`}
               title={showHistory ? 'Show Chat' : 'Show History'}
             >
-              <History className="w-4 h-4" />
+              <History className="w-5 h-5 sm:w-4 sm:h-4" />
             </button>
             <button
               onClick={onToggle}
-              className="p-1 rounded-md hover:bg-gray-200 transition-colors"
+              className="p-2 sm:p-1 rounded-md hover:bg-gray-200 transition-colors"
               title="Close Chat"
             >
-              <X className="w-4 h-4 text-gray-500" />
+              <X className="w-5 h-5 sm:w-4 sm:h-4 text-gray-500" />
             </button>
           </div>
         </div>
