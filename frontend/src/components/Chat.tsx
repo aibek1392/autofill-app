@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Send, User } from 'lucide-react'
+import { Send, User, FileText } from 'lucide-react'
 import { chatWithDocuments, chatWithDocumentsStream, ChatResponse } from '../lib/api'
 
 interface Message {

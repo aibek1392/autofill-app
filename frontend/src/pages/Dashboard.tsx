@@ -11,6 +11,7 @@ import ResizableChatPanel from '../components/ResizableChatPanel'
 import AuthStatus from '../components/AuthStatus'
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal'
 import EmbeddedPDFEditor from '../components/EmbeddedPDFEditor'
+import TransactionsList from '../components/TransactionsList'
 import { 
   LogOut, 
   Upload, 
@@ -24,7 +25,8 @@ import {
   CheckCircle,
   AlertCircle,
   Globe,
-  Edit
+  Edit,
+  DollarSign
 } from 'lucide-react'
 
 // Custom DocuChat Icon Component
@@ -59,7 +61,7 @@ interface DashboardProps {
   user?: User | null
 }
 
-type ActiveTab = 'upload' | 'chat' | 'forms' | 'web-autofill' | 'analytics'
+type ActiveTab = 'upload' | 'chat' | 'forms' | 'web-autofill' | 'analytics' | 'transactions'
 
 const Dashboard: React.FC<DashboardProps> = ({ user = null }) => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('upload')
@@ -257,6 +259,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user = null }) => {
     { id: 'chat', name: 'Document Chat', icon: MessageCircle },
     { id: 'forms', name: 'PDF Form Autofill', icon: FileText },
     { id: 'web-autofill', name: 'Web Form Autofill', icon: Globe },
+    { id: 'transactions', name: 'Financial Transactions', icon: DollarSign },
     { id: 'analytics', name: 'Analytics', icon: BarChart3 },
   ]
 
@@ -493,6 +496,88 @@ const Dashboard: React.FC<DashboardProps> = ({ user = null }) => {
             </div>
             
             <WebFormAutofill />
+          </div>
+        )
+
+      case 'transactions':
+        return (
+          <div className="space-y-6">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 mb-2">Financial Transactions</h1>
+              <p className="text-gray-600">
+                View parsed transactions from your uploaded financial statements and bank documents.
+              </p>
+            </div>
+
+            {/* Document selector for transactions */}
+            {documents.length > 0 ? (
+              <div className="card p-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Select a Document to View Transactions</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {documents.map((doc) => (
+                    <div 
+                      key={doc.doc_id} 
+                      className="p-4 border border-gray-200 rounded-lg hover:border-blue-300 cursor-pointer transition-colors"
+                      onClick={() => setSelectedDocument(doc)}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <DollarSign className="w-8 h-8 text-green-600" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">{doc.filename}</p>
+                          <p className="text-xs text-gray-500">
+                            {formatFileSize(doc.file_size)} • {formatDate(doc.uploaded_at)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-2">
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                          doc.processing_status === 'completed' 
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {doc.processing_status === 'completed' ? 'Processed' : 'Processing'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                
+                {/* Show transactions for selected document */}
+                {selectedDocument && (
+                  <div className="mt-8">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="text-lg font-medium text-gray-900">
+                        Transactions from: {selectedDocument.filename}
+                      </h4>
+                      <button
+                        onClick={() => setSelectedDocument(null)}
+                        className="text-sm text-gray-500 hover:text-gray-700"
+                      >
+                        Clear Selection
+                      </button>
+                    </div>
+                    <TransactionsList 
+                      docId={selectedDocument.doc_id} 
+                      userId={user?.id || 'demo-user'} 
+                    />
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="card p-8 text-center">
+                <DollarSign className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No Documents Found</h3>
+                <p className="text-gray-500 mb-4">
+                  Upload financial statements or bank documents to view parsed transactions.
+                </p>
+                <button
+                  onClick={() => setActiveTab('upload')}
+                  className="btn-primary"
+                >
+                  Upload Documents
+                </button>
+              </div>
+            )}
           </div>
         )
 

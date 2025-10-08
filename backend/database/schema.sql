@@ -34,6 +34,22 @@ CREATE TABLE vector_chunks (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Transactions parsed from financial statements (row-by-row)
+CREATE TABLE transactions (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    doc_id UUID REFERENCES uploaded_documents(doc_id) ON DELETE CASCADE,
+    trans_date DATE,
+    description TEXT,
+    amount NUMERIC,
+    line_number INTEGER,
+    raw_text TEXT,
+    confidence REAL,
+    external_transaction_id VARCHAR(255),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Filled forms history
 CREATE TABLE filled_forms (
     form_id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
@@ -78,6 +94,10 @@ CREATE INDEX idx_filled_forms_user_id ON filled_forms(user_id);
 CREATE INDEX idx_chat_sessions_user_id ON chat_sessions(user_id);
 CREATE INDEX idx_chat_messages_session_id ON chat_messages(session_id);
 CREATE INDEX idx_chat_messages_user_id ON chat_messages(user_id);
+CREATE INDEX idx_transactions_user_id ON transactions(user_id);
+CREATE INDEX idx_transactions_doc_id ON transactions(doc_id);
+CREATE INDEX idx_transactions_date ON transactions(trans_date);
+CREATE INDEX idx_transactions_amount ON transactions(amount);
 
 -- Row Level Security (RLS) policies
 ALTER TABLE uploaded_documents ENABLE ROW LEVEL SECURITY;
@@ -85,6 +105,7 @@ ALTER TABLE vector_chunks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE filled_forms ENABLE ROW LEVEL SECURITY;
 ALTER TABLE chat_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
 
 -- RLS policies for uploaded_documents
 CREATE POLICY "Users can view their own documents" ON uploaded_documents
@@ -107,6 +128,19 @@ CREATE POLICY "Users can insert their own chunks" ON vector_chunks
     FOR INSERT WITH CHECK (auth.uid() = user_id);
 
 CREATE POLICY "Users can delete their own chunks" ON vector_chunks
+    FOR DELETE USING (auth.uid() = user_id);
+
+-- RLS policies for transactions
+CREATE POLICY "Users can view their own transactions" ON transactions
+    FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own transactions" ON transactions
+    FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own transactions" ON transactions
+    FOR UPDATE USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own transactions" ON transactions
     FOR DELETE USING (auth.uid() = user_id);
 
 -- RLS policies for filled_forms
@@ -159,6 +193,9 @@ CREATE TRIGGER update_filled_forms_updated_at BEFORE UPDATE ON filled_forms
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_chat_sessions_updated_at BEFORE UPDATE ON chat_sessions
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_transactions_updated_at BEFORE UPDATE ON transactions
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Storage bucket for file uploads (if using Supabase storage)

@@ -122,7 +122,12 @@ REACT_APP_SUPABASE_ANON_KEY=your_supabase_key`}
         if (error) throw error
       }
     } catch (error: any) {
-      setError(error.message)
+      const message = (error?.message || '').toString()
+      if (message.includes('Failed to fetch')) {
+        setError('Unable to reach Supabase. Check your internet connection and REACT_APP_SUPABASE_URL. Ensure the project URL resolves and try again.')
+      } else {
+        setError(message)
+      }
     } finally {
       setLoading(false)
     }

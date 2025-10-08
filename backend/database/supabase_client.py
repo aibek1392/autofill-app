@@ -217,6 +217,56 @@ class SupabaseClient:
         except Exception as e:
             logger.error(f"Failed to get document chunks: {str(e)}")
             raise
+
+    async def create_transactions_bulk(self, user_id: str, doc_id: str, transactions: List[Dict[str, Any]]) -> int:
+        """Insert multiple transactions for a document"""
+        if not self.has_supabase_credentials:
+            logger.warning("Cannot create transactions - Supabase not configured")
+            return 0
+        try:
+            if not transactions:
+                return 0
+            client_to_use = self.admin_client if self.admin_client else self.client
+            # Map parser fields to DB columns
+            rows = []
+            for t in transactions:
+                rows.append({
+                    'user_id': user_id,
+                    'doc_id': doc_id,
+                    'trans_date': t.get('date'),
+                    'description': t.get('description'),
+                    'amount': t.get('amount'),
+                    'line_number': t.get('line_number'),
+                    'raw_text': t.get('raw_text'),
+                    'confidence': t.get('confidence'),
+                    'external_transaction_id': t.get('transaction_id')
+                })
+            result = client_to_use.table('transactions').insert(rows).execute()
+            inserted = len(result.data) if result.data else 0
+            logger.info(f"Inserted {inserted} transactions - user_id: {user_id}, doc_id: {doc_id}")
+            return inserted
+        except Exception as e:
+            logger.error(f"Failed to insert transactions: {str(e)}")
+            raise
+
+    async def get_document_transactions(self, user_id: str, doc_id: str) -> List[Dict[str, Any]]:
+        """Get transactions for a document"""
+        if not self.has_supabase_credentials:
+            logger.warning("Cannot get transactions - Supabase not configured")
+            return []
+        try:
+            client_to_use = self.admin_client if self.admin_client else self.client
+            result = client_to_use.table('transactions') \
+                .select('*') \
+                .eq('user_id', user_id) \
+                .eq('doc_id', doc_id) \
+                .order('trans_date', desc=False) \
+                .order('line_number', desc=False) \
+                .execute()
+            return result.data or []
+        except Exception as e:
+            logger.error(f"Failed to get transactions: {str(e)}")
+            raise
     
     async def create_filled_form(self, user_id: str, original_form_name: str, filled_form_url: str) -> Dict[str, Any]:
         """Create a record for a filled form"""

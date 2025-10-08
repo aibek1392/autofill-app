@@ -13,6 +13,7 @@ import logging
 import json
 from config import settings
 from services.document_processor import document_processor
+from services.transaction_parser import transaction_parser
 from services.rag_service import rag_service
 from services.form_filler import form_filler
 from services.web_form_service import web_form_service
@@ -105,6 +106,10 @@ class FieldMatchResponse(BaseModel):
     field_type: Optional[str] = None
     source: Optional[str] = None
     suggestions: List[Dict[str, Any]] = []
+
+class TransactionsResponse(BaseModel):
+    doc_id: str
+    transactions: List[Dict[str, Any]]
 
 class BulkFieldMatchRequest(BaseModel):
     fields: List[Dict[str, str]]  # List of field info dicts
@@ -227,9 +232,35 @@ async def process_document_background(file_path: str, filename: str, user_id: st
         document = await document_processor.process_document(file_path, filename, doc_id)
         logger.info(f"Document processed successfully - doc_id: {document['doc_id']}, text_length: {len(document['text'])}")
         
+        # Parse transactions row-by-row for financial statements
+        transactions = []
+        try:
+            transactions = transaction_parser.parse_transactions(document.get('text', ''))
+            logger.info(f"Transaction parsing complete - count: {len(transactions)}")
+        except Exception as parse_err:
+            logger.warning(f"Transaction parsing failed: {str(parse_err)}")
+
+        # Persist transactions (best-effort)
+        if transactions and supabase_client.has_supabase_credentials and doc_id:
+            try:
+                inserted = await supabase_client.create_transactions_bulk(user_id, doc_id, transactions)
+                logger.info(f"Transactions saved to DB - inserted: {inserted}")
+            except Exception as tx_err:
+                logger.warning(f"Failed to save transactions: {str(tx_err)}")
+
+        # Create transaction chunks for embeddings in addition to text chunks
+        transaction_chunks = []
+        try:
+            if transactions:
+                transaction_chunks = transaction_parser.create_transaction_chunks(transactions, document['doc_id'], filename)
+        except Exception as ch_err:
+            logger.warning(f"Failed to create transaction chunks: {str(ch_err)}")
+
         # Document record is already created in the upload endpoint, so we don't need to create it again
         # Just chunk and process the document
         chunks = document_processor.chunk_document(document)
+        if transaction_chunks:
+            chunks = chunks + transaction_chunks
         logger.info(f"Document chunked successfully - chunks: {len(chunks)}")
         
         # Process through RAG pipeline with document for field embeddings
@@ -544,6 +575,17 @@ async def delete_document(
             
         except Exception as e:
             logger.error(f"Failed to delete chunks from Supabase: {str(e)}")
+            # Continue with other deletions
+
+        # Step 2.5: Delete transactions from Supabase transactions table
+        try:
+            logger.info(f"Deleting transactions from Supabase for doc_id: {doc_id}")
+            txns_result = client.table('transactions').delete().eq('doc_id', doc_id).eq('user_id', user_id).execute()
+            deleted_txns = len(txns_result.data) if txns_result.data else 0
+            logger.info(f"Deleted {deleted_txns} transactions from Supabase transactions table")
+            
+        except Exception as e:
+            logger.error(f"Failed to delete transactions from Supabase: {str(e)}")
             # Continue with other deletions
         
         # Step 3: Delete physical file from disk
@@ -904,6 +946,25 @@ async def download_document_by_id(
     except Exception as e:
         logger.error(f"Document download failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to download document: {str(e)}")
+
+@app.get("/api/documents/{doc_id}/transactions", response_model=TransactionsResponse)
+async def get_document_transactions(doc_id: str, user_id: Optional[str] = Header(None, alias="X-User-ID")):
+    """Fetch parsed transactions for a given document"""
+    try:
+        if not user_id:
+            raise HTTPException(status_code=401, detail="User ID not provided")
+
+        if not supabase_client.has_supabase_credentials:
+            # If DB not configured, return empty list
+            return TransactionsResponse(doc_id=doc_id, transactions=[])
+
+        txns = await supabase_client.get_document_transactions(user_id, doc_id)
+        return TransactionsResponse(doc_id=doc_id, transactions=txns)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get transactions for doc_id {doc_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to load transactions")
 
 @app.get("/api/public/documents/{doc_id}")
 async def get_public_document(
@@ -1275,7 +1336,7 @@ async def match_fields_bulk(
 async def bookmarklet_page():
     """Display the bookmarklet in a user-friendly HTML page"""
     try:
-        user_id = DEMO_USER_ID
+        user_id = "demo-user"
         
         # Generate the smart bookmarklet (complete JavaScript)
         smart_bookmarklet = f"""javascript:(function(){{
