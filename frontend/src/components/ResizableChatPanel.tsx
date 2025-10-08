@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
-import { X } from 'lucide-react'
+import { X, History } from 'lucide-react'
 import Chat from './Chat'
+import ChatHistory from './ChatHistory'
 
 interface ResizableChatPanelProps {
   isOpen: boolean
@@ -22,6 +23,8 @@ const ResizableChatPanel: React.FC<ResizableChatPanelProps> = ({
   const [startX, setStartX] = useState(0)
   const [startWidth, setStartWidth] = useState(0)
   const [isMobile, setIsMobile] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
+  const [currentSessionId, setCurrentSessionId] = useState<string | undefined>(undefined)
   const resizeRef = useRef<HTMLDivElement>(null)
 
   // Check if we're on mobile
@@ -134,20 +137,51 @@ const ResizableChatPanel: React.FC<ResizableChatPanelProps> = ({
               </div>
               <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
             </div>
-            <h3 className="font-medium text-gray-900">AI Assistant</h3>
+            <h3 className="font-medium text-gray-900">
+              {showHistory ? 'Chat History' : 'AI Assistant'}
+            </h3>
           </div>
-          <button
-            onClick={onToggle}
-            className="p-1 rounded-md hover:bg-gray-200 transition-colors"
-            title="Close Chat"
-          >
-            <X className="w-4 h-4 text-gray-500" />
-          </button>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setShowHistory(!showHistory)}
+              className={`p-1 rounded-md transition-colors ${
+                showHistory ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-200 text-gray-500'
+              }`}
+              title={showHistory ? 'Show Chat' : 'Show History'}
+            >
+              <History className="w-4 h-4" />
+            </button>
+            <button
+              onClick={onToggle}
+              className="p-1 rounded-md hover:bg-gray-200 transition-colors"
+              title="Close Chat"
+            >
+              <X className="w-4 h-4 text-gray-500" />
+            </button>
+          </div>
         </div>
 
-        {/* Chat Content */}
+        {/* Content */}
         <div className="flex-1 min-h-0">
-          <Chat />
+          {showHistory ? (
+            <ChatHistory
+              currentSessionId={currentSessionId}
+              onSessionSelect={(sessionId) => {
+                setCurrentSessionId(sessionId)
+                setShowHistory(false) // Switch back to chat when session is selected
+              }}
+              onNewSession={() => {
+                setCurrentSessionId(undefined)
+                setShowHistory(false) // Switch back to chat for new session
+              }}
+              className="h-full"
+            />
+          ) : (
+            <Chat
+              sessionId={currentSessionId}
+              onSessionChange={(sessionId) => setCurrentSessionId(sessionId)}
+            />
+          )}
         </div>
 
         {/* Resize Handle - Only show on desktop */}

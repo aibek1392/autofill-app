@@ -267,6 +267,148 @@ class SupabaseClient:
         except Exception as e:
             logger.error(f"Failed to get transactions: {str(e)}")
             raise
+
+    # Chat History Methods
+    async def create_chat_session(self, user_id: str, session_name: str = None) -> Dict[str, Any]:
+        """Create a new chat session"""
+        if not self.has_supabase_credentials:
+            logger.warning("Cannot create chat session - Supabase not configured")
+            return {}
+        try:
+            client_to_use = self.admin_client if self.admin_client else self.client
+            
+            # Generate session name if not provided
+            if not session_name:
+                from datetime import datetime
+                session_name = f"Chat {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+            
+            session_data = {
+                'user_id': user_id,
+                'session_name': session_name
+            }
+            
+            result = client_to_use.table('chat_sessions').insert(session_data).execute()
+            
+            if result.data and len(result.data) > 0:
+                created_session = result.data[0]
+                logger.info(f"Chat session created - session_id: {created_session.get('session_id')}, user_id: {user_id}")
+                return created_session
+            else:
+                logger.warning(f"Chat session insert returned empty result for user_id: {user_id}")
+                return {}
+                
+        except Exception as e:
+            logger.error(f"Failed to create chat session: {str(e)}")
+            raise
+
+    async def get_user_chat_sessions(self, user_id: str) -> List[Dict[str, Any]]:
+        """Get all chat sessions for a user"""
+        if not self.has_supabase_credentials:
+            logger.warning("Cannot get chat sessions - Supabase not configured")
+            return []
+        try:
+            client_to_use = self.admin_client if self.admin_client else self.client
+            result = client_to_use.table('chat_sessions') \
+                .select('*') \
+                .eq('user_id', user_id) \
+                .order('updated_at', desc=True) \
+                .execute()
+            return result.data or []
+        except Exception as e:
+            logger.error(f"Failed to get chat sessions: {str(e)}")
+            raise
+
+    async def get_session_messages(self, session_id: str, user_id: str) -> List[Dict[str, Any]]:
+        """Get all messages for a chat session"""
+        if not self.has_supabase_credentials:
+            logger.warning("Cannot get session messages - Supabase not configured")
+            return []
+        try:
+            client_to_use = self.admin_client if self.admin_client else self.client
+            result = client_to_use.table('chat_messages') \
+                .select('*') \
+                .eq('session_id', session_id) \
+                .eq('user_id', user_id) \
+                .order('created_at', desc=False) \
+                .execute()
+            return result.data or []
+        except Exception as e:
+            logger.error(f"Failed to get session messages: {str(e)}")
+            raise
+
+    async def save_chat_message(self, session_id: str, user_id: str, message: str, response: str, sources: List[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Save a chat message and response"""
+        if not self.has_supabase_credentials:
+            logger.warning("Cannot save chat message - Supabase not configured")
+            return {}
+        try:
+            client_to_use = self.admin_client if self.admin_client else self.client
+            
+            message_data = {
+                'session_id': session_id,
+                'user_id': user_id,
+                'message': message,
+                'response': response,
+                'sources': sources or [],
+                'metadata': {}
+            }
+            
+            result = client_to_use.table('chat_messages').insert(message_data).execute()
+            
+            # Update session updated_at timestamp
+            try:
+                client_to_use.table('chat_sessions') \
+                    .update({'updated_at': 'now()'}) \
+                    .eq('session_id', session_id) \
+                    .eq('user_id', user_id) \
+                    .execute()
+            except Exception as update_err:
+                logger.warning(f"Failed to update session timestamp: {str(update_err)}")
+            
+            if result.data and len(result.data) > 0:
+                saved_message = result.data[0]
+                logger.info(f"Chat message saved - message_id: {saved_message.get('message_id')}, session_id: {session_id}")
+                return saved_message
+            else:
+                logger.warning(f"Chat message insert returned empty result for session_id: {session_id}")
+                return {}
+                
+        except Exception as e:
+            logger.error(f"Failed to save chat message: {str(e)}")
+            raise
+
+    async def delete_chat_session(self, session_id: str, user_id: str) -> bool:
+        """Delete a chat session and all its messages"""
+        if not self.has_supabase_credentials:
+            logger.warning("Cannot delete chat session - Supabase not configured")
+            return False
+        try:
+            client_to_use = self.admin_client if self.admin_client else self.client
+            
+            # Delete messages first (due to foreign key constraint)
+            messages_result = client_to_use.table('chat_messages') \
+                .delete() \
+                .eq('session_id', session_id) \
+                .eq('user_id', user_id) \
+                .execute()
+            
+            deleted_messages = len(messages_result.data) if messages_result.data else 0
+            
+            # Delete session
+            session_result = client_to_use.table('chat_sessions') \
+                .delete() \
+                .eq('session_id', session_id) \
+                .eq('user_id', user_id) \
+                .execute()
+            
+            deleted_sessions = len(session_result.data) if session_result.data else 0
+            
+            logger.info(f"Chat session deleted - session_id: {session_id}, messages: {deleted_messages}, sessions: {deleted_sessions}")
+            return deleted_sessions > 0
+            
+        except Exception as e:
+            logger.error(f"Failed to delete chat session: {str(e)}")
+            raise
     
     async def create_filled_form(self, user_id: str, original_form_name: str, filled_form_url: str) -> Dict[str, Any]:
         """Create a record for a filled form"""

@@ -303,4 +303,144 @@ export const getHealthStatus = async (): Promise<any> => {
   return response.data
 }
 
+// Chat History API Functions
+
+export interface ChatSession {
+  session_id: string
+  session_name: string
+  created_at: string
+  updated_at: string
+}
+
+export interface ChatHistoryMessage {
+  message_id: string
+  message: string
+  response: string
+  sources: Array<{ filename: string; score: number }>
+  created_at: string
+}
+
+export const createChatSession = async (sessionName?: string): Promise<ChatSession> => {
+  try {
+    const userId = await getUserId()
+    
+    const response = await fetch(`${API_BASE_URL}/api/chat/sessions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-User-ID': userId
+      },
+      body: JSON.stringify({
+        session_name: sessionName
+      })
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to create chat session: ${response.statusText}`)
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error('Failed to create chat session:', error)
+    throw error
+  }
+}
+
+export const getChatSessions = async (): Promise<ChatSession[]> => {
+  try {
+    const userId = await getUserId()
+    
+    const response = await fetch(`${API_BASE_URL}/api/chat/sessions`, {
+      headers: {
+        'X-User-ID': userId
+      }
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to get chat sessions: ${response.statusText}`)
+    }
+
+    const data = await response.json()
+    return data.sessions || []
+  } catch (error) {
+    console.error('Failed to get chat sessions:', error)
+    throw error
+  }
+}
+
+export const getSessionMessages = async (sessionId: string): Promise<ChatHistoryMessage[]> => {
+  try {
+    const userId = await getUserId()
+    
+    const response = await fetch(`${API_BASE_URL}/api/chat/sessions/${sessionId}/messages`, {
+      headers: {
+        'X-User-ID': userId
+      }
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to get session messages: ${response.statusText}`)
+    }
+
+    const data = await response.json()
+    return data.messages || []
+  } catch (error) {
+    console.error('Failed to get session messages:', error)
+    throw error
+  }
+}
+
+export const saveChatMessage = async (
+  sessionId: string,
+  message: string,
+  response: string,
+  sources?: Array<{ filename: string; score: number }>
+): Promise<ChatHistoryMessage> => {
+  try {
+    const userId = await getUserId()
+    
+    const apiResponse = await fetch(`${API_BASE_URL}/api/chat/sessions/${sessionId}/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-User-ID': userId
+      },
+      body: JSON.stringify({
+        message,
+        response,
+        sources: sources || []
+      })
+    })
+
+    if (!apiResponse.ok) {
+      throw new Error(`Failed to save chat message: ${apiResponse.statusText}`)
+    }
+
+    return await apiResponse.json()
+  } catch (error) {
+    console.error('Failed to save chat message:', error)
+    throw error
+  }
+}
+
+export const deleteChatSession = async (sessionId: string): Promise<void> => {
+  try {
+    const userId = await getUserId()
+    
+    const response = await fetch(`${API_BASE_URL}/api/chat/sessions/${sessionId}`, {
+      method: 'DELETE',
+      headers: {
+        'X-User-ID': userId
+      }
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to delete chat session: ${response.statusText}`)
+    }
+  } catch (error) {
+    console.error('Failed to delete chat session:', error)
+    throw error
+  }
+}
+
 export default api 

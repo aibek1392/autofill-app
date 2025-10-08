@@ -111,6 +111,27 @@ class TransactionsResponse(BaseModel):
     doc_id: str
     transactions: List[Dict[str, Any]]
 
+class CreateChatSessionRequest(BaseModel):
+    session_name: Optional[str] = None
+
+class ChatSessionResponse(BaseModel):
+    session_id: str
+    session_name: str
+    created_at: str
+    updated_at: str
+
+class SaveChatMessageRequest(BaseModel):
+    message: str
+    response: str
+    sources: Optional[List[Dict[str, Any]]] = None
+
+class ChatMessageResponse(BaseModel):
+    message_id: str
+    message: str
+    response: str
+    sources: List[Dict[str, Any]]
+    created_at: str
+
 class BulkFieldMatchRequest(BaseModel):
     fields: List[Dict[str, str]]  # List of field info dicts
     user_id: Optional[str] = None
@@ -965,6 +986,140 @@ async def get_document_transactions(doc_id: str, user_id: Optional[str] = Header
     except Exception as e:
         logger.error(f"Failed to get transactions for doc_id {doc_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to load transactions")
+
+# Chat History Endpoints
+
+@app.post("/api/chat/sessions", response_model=ChatSessionResponse)
+async def create_chat_session(
+    request: CreateChatSessionRequest,
+    user_id: Optional[str] = Header(None, alias="X-User-ID")
+):
+    """Create a new chat session"""
+    try:
+        if not user_id:
+            raise HTTPException(status_code=401, detail="User ID not provided")
+
+        if not supabase_client.has_supabase_credentials:
+            raise HTTPException(status_code=503, detail="Chat history not available - database not configured")
+
+        session = await supabase_client.create_chat_session(user_id, request.session_name)
+        
+        if not session:
+            raise HTTPException(status_code=500, detail="Failed to create chat session")
+
+        return ChatSessionResponse(
+            session_id=session['session_id'],
+            session_name=session['session_name'],
+            created_at=session['created_at'],
+            updated_at=session['updated_at']
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to create chat session: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to create chat session")
+
+@app.get("/api/chat/sessions")
+async def get_chat_sessions(user_id: Optional[str] = Header(None, alias="X-User-ID")):
+    """Get all chat sessions for the current user"""
+    try:
+        if not user_id:
+            raise HTTPException(status_code=401, detail="User ID not provided")
+
+        if not supabase_client.has_supabase_credentials:
+            return {"sessions": []}
+
+        sessions = await supabase_client.get_user_chat_sessions(user_id)
+        return {"sessions": sessions}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get chat sessions: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to load chat sessions")
+
+@app.get("/api/chat/sessions/{session_id}/messages")
+async def get_session_messages(
+    session_id: str,
+    user_id: Optional[str] = Header(None, alias="X-User-ID")
+):
+    """Get all messages for a chat session"""
+    try:
+        if not user_id:
+            raise HTTPException(status_code=401, detail="User ID not provided")
+
+        if not supabase_client.has_supabase_credentials:
+            return {"messages": []}
+
+        messages = await supabase_client.get_session_messages(session_id, user_id)
+        return {"messages": messages}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get session messages: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to load messages")
+
+@app.post("/api/chat/sessions/{session_id}/messages", response_model=ChatMessageResponse)
+async def save_chat_message(
+    session_id: str,
+    request: SaveChatMessageRequest,
+    user_id: Optional[str] = Header(None, alias="X-User-ID")
+):
+    """Save a chat message and response to a session"""
+    try:
+        if not user_id:
+            raise HTTPException(status_code=401, detail="User ID not provided")
+
+        if not supabase_client.has_supabase_credentials:
+            raise HTTPException(status_code=503, detail="Chat history not available - database not configured")
+
+        saved_message = await supabase_client.save_chat_message(
+            session_id=session_id,
+            user_id=user_id,
+            message=request.message,
+            response=request.response,
+            sources=request.sources
+        )
+        
+        if not saved_message:
+            raise HTTPException(status_code=500, detail="Failed to save chat message")
+
+        return ChatMessageResponse(
+            message_id=saved_message['message_id'],
+            message=saved_message['message'],
+            response=saved_message['response'],
+            sources=saved_message['sources'],
+            created_at=saved_message['created_at']
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to save chat message: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to save message")
+
+@app.delete("/api/chat/sessions/{session_id}")
+async def delete_chat_session(
+    session_id: str,
+    user_id: Optional[str] = Header(None, alias="X-User-ID")
+):
+    """Delete a chat session and all its messages"""
+    try:
+        if not user_id:
+            raise HTTPException(status_code=401, detail="User ID not provided")
+
+        if not supabase_client.has_supabase_credentials:
+            raise HTTPException(status_code=503, detail="Chat history not available - database not configured")
+
+        success = await supabase_client.delete_chat_session(session_id, user_id)
+        
+        if not success:
+            raise HTTPException(status_code=404, detail="Chat session not found or access denied")
+
+        return {"message": "Chat session deleted successfully", "session_id": session_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete chat session: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to delete chat session")
 
 @app.get("/api/public/documents/{doc_id}")
 async def get_public_document(

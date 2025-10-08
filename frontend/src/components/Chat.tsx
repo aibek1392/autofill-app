@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Send, User, FileText } from 'lucide-react'
-import { chatWithDocuments, chatWithDocumentsStream, ChatResponse } from '../lib/api'
+import { chatWithDocuments, chatWithDocumentsStream, ChatResponse, createChatSession, getSessionMessages, saveChatMessage } from '../lib/api'
 
 interface Message {
   id: string
@@ -16,10 +16,12 @@ interface Message {
 }
 
 interface ChatProps {
+  sessionId?: string
   onNewMessage?: (message: Message) => void
+  onSessionChange?: (sessionId: string) => void
 }
 
-const Chat: React.FC<ChatProps> = ({ onNewMessage }) => {
+const Chat: React.FC<ChatProps> = ({ sessionId, onNewMessage, onSessionChange }) => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -31,6 +33,8 @@ const Chat: React.FC<ChatProps> = ({ onNewMessage }) => {
   const [inputValue, setInputValue] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [useStreaming, setUseStreaming] = useState(true)
+  const [currentSessionId, setCurrentSessionId] = useState<string | undefined>(sessionId)
+  const [savingToHistory, setSavingToHistory] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -41,6 +45,88 @@ const Chat: React.FC<ChatProps> = ({ onNewMessage }) => {
   useEffect(() => {
     scrollToBottom()
   }, [messages])
+
+  // Load chat history when sessionId changes
+  useEffect(() => {
+    if (sessionId && sessionId !== currentSessionId) {
+      loadChatHistory(sessionId)
+      setCurrentSessionId(sessionId)
+    }
+  }, [sessionId, currentSessionId])
+
+  const loadChatHistory = async (sessionIdToLoad: string) => {
+    try {
+      const historyMessages = await getSessionMessages(sessionIdToLoad)
+      
+      // Convert history messages to our Message format
+      const convertedMessages: Message[] = []
+      
+      // Add welcome message
+      convertedMessages.push({
+        id: '1',
+        type: 'assistant',
+        content: "Hi! I'm your AI assistant. I can help you find information from your uploaded documents and answer questions about them. What would you like to know?",
+        timestamp: new Date()
+      })
+
+      // Add history messages
+      historyMessages.forEach((histMsg, index) => {
+        // Add user message
+        convertedMessages.push({
+          id: `history_user_${index}`,
+          type: 'user',
+          content: histMsg.message,
+          timestamp: new Date(histMsg.created_at)
+        })
+
+        // Add assistant response
+        convertedMessages.push({
+          id: `history_assistant_${index}`,
+          type: 'assistant',
+          content: histMsg.response,
+          sources: histMsg.sources,
+          timestamp: new Date(histMsg.created_at)
+        })
+      })
+
+      setMessages(convertedMessages)
+    } catch (error) {
+      console.error('Failed to load chat history:', error)
+      // Keep current messages if loading fails
+    }
+  }
+
+  const saveMessageToHistory = async (userMessage: string, assistantResponse: string, sources?: Array<{ filename: string; score: number }>) => {
+    if (!currentSessionId) return
+
+    try {
+      setSavingToHistory(true)
+      await saveChatMessage(currentSessionId, userMessage, assistantResponse, sources)
+    } catch (error) {
+      console.error('Failed to save message to history:', error)
+      // Don't block the user experience if saving fails
+    } finally {
+      setSavingToHistory(false)
+    }
+  }
+
+  const createNewSession = async () => {
+    try {
+      const newSession = await createChatSession()
+      setCurrentSessionId(newSession.session_id)
+      onSessionChange?.(newSession.session_id)
+      
+      // Reset to welcome message
+      setMessages([{
+        id: '1',
+        type: 'assistant',
+        content: "Hi! I'm your AI assistant. I can help you find information from your uploaded documents and answer questions about them. What would you like to know?",
+        timestamp: new Date()
+      }])
+    } catch (error) {
+      console.error('Failed to create new session:', error)
+    }
+  }
 
   const sendMessage = async () => {
     if (!inputValue.trim() || isLoading) return
@@ -127,9 +213,27 @@ const Chat: React.FC<ChatProps> = ({ onNewMessage }) => {
                 : msg
             ))
           },
-          () => {
-            // Stream completed
+          async () => {
+            // Stream completed - save to history
             setIsLoading(false)
+            
+            // Create session if we don't have one
+            if (!currentSessionId) {
+              try {
+                const newSession = await createChatSession()
+                setCurrentSessionId(newSession.session_id)
+                onSessionChange?.(newSession.session_id)
+              } catch (error) {
+                console.error('Failed to create session for history:', error)
+                return
+              }
+            }
+
+            // Save the completed conversation to history
+            const finalMessage = messages.find(msg => msg.id === loadingMessageId)
+            if (finalMessage && finalMessage.content) {
+              await saveMessageToHistory(userMessage.content, finalMessage.content, finalMessage.sources)
+            }
           }
         )
       } else {
@@ -147,6 +251,21 @@ const Chat: React.FC<ChatProps> = ({ onNewMessage }) => {
         // Remove loading message and add real response
         setMessages(prev => prev.slice(0, -1).concat(assistantMessage))
         onNewMessage?.(assistantMessage)
+
+        // Save to history for non-streaming
+        if (!currentSessionId) {
+          try {
+            const newSession = await createChatSession()
+            setCurrentSessionId(newSession.session_id)
+            onSessionChange?.(newSession.session_id)
+          } catch (error) {
+            console.error('Failed to create session for history:', error)
+          }
+        }
+        
+        if (currentSessionId) {
+          await saveMessageToHistory(userMessage.content, response.answer, response.sources)
+        }
       }
     } catch (error) {
       console.error('Chat error:', error)
@@ -199,15 +318,10 @@ const Chat: React.FC<ChatProps> = ({ onNewMessage }) => {
             <span className="text-gray-600">Streaming</span>
           </label>
           <button
-            onClick={() => setMessages([{
-              id: '1',
-              type: 'assistant',
-              content: "Hi! I'm your AI assistant. I can help you find information from your uploaded documents and answer questions about them. What would you like to know?",
-              timestamp: new Date()
-            }])}
+            onClick={createNewSession}
             className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded border"
           >
-            Clear Chat
+            New Chat
           </button>
         </div>
       </div>
@@ -326,9 +440,17 @@ const Chat: React.FC<ChatProps> = ({ onNewMessage }) => {
             <Send className="w-4 h-4" />
           </button>
         </div>
-        <p className="text-xs text-gray-500 mt-2">
-          Press Enter to send • Shift+Enter for new line
-        </p>
+        <div className="flex items-center justify-between mt-2">
+          <p className="text-xs text-gray-500">
+            Press Enter to send • Shift+Enter for new line
+          </p>
+          {savingToHistory && (
+            <p className="text-xs text-blue-500 flex items-center">
+              <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse mr-1"></div>
+              Saving to history...
+            </p>
+          )}
+        </div>
       </div>
     </div>
   )
