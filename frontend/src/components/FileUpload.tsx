@@ -54,6 +54,20 @@ interface FileWithStatus extends File {
   error?: string
 }
 
+const getUploadErrorMessage = (error: unknown): string => {
+  const responseDetail = (error as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail
+  if (typeof responseDetail === 'string' && responseDetail) {
+    return responseDetail
+  }
+  if (error instanceof Error && error.message.includes('User not authenticated')) {
+    return 'Please log in to upload documents. You need to be authenticated to use this feature.'
+  }
+  if (error instanceof Error && error.message) {
+    return error.message
+  }
+  return 'Upload failed'
+}
+
 const FileUpload: React.FC<FileUploadProps> = ({
   onUploadComplete,
   accept = ['.pdf', '.jpg', '.jpeg', '.png'],
@@ -87,13 +101,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
       }
     } catch (error) {
       console.error('Upload failed:', error)
-      
-      // Check if it's an authentication error
-      if (error instanceof Error && error.message.includes('User not authenticated')) {
-        alert('Please log in to upload documents. You need to be authenticated to use this feature.')
-      } else {
-        alert(error instanceof Error ? error.message : 'Upload failed')
-      }
+      alert(getUploadErrorMessage(error))
     } finally {
       setIsUploading(false)
     }
@@ -141,13 +149,15 @@ const FileUpload: React.FC<FileUploadProps> = ({
       
       onUploadComplete?.(result.files)
     } catch (error) {
+      const message = getUploadErrorMessage(error)
       // Update status to error
       setFiles(prev => prev.map(f => 
         filesToUpload.some(ftd => ftd.id === f.id) 
-          ? { ...f, status: 'error', error: 'Upload failed' } 
+          ? { ...f, status: 'error', error: message } 
           : f
       ))
       console.error('Upload failed:', error)
+      alert(message)
     } finally {
       setIsUploading(false)
     }

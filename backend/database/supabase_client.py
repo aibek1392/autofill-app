@@ -100,6 +100,30 @@ class SupabaseClient:
             self.client = None
             self.admin_client = None
 
+        self.ensure_documents_bucket()
+
+    def ensure_documents_bucket(self):
+        """Create the documents bucket if Storage does not already have it."""
+        if not getattr(self, "admin_client", None):
+            return
+        try:
+            buckets = self.admin_client.storage.list_buckets() or []
+            names = set()
+            for bucket in buckets:
+                if isinstance(bucket, dict):
+                    names.add(bucket.get("name") or bucket.get("id"))
+                else:
+                    names.add(getattr(bucket, "name", None) or getattr(bucket, "id", None))
+            if "documents" in names:
+                return
+            self.admin_client.storage.create_bucket("documents", options={"public": False})
+            logger.info("Created Supabase Storage bucket: documents")
+        except Exception as e:
+            message = str(e).lower()
+            if "already exists" in message or "duplicate" in message:
+                return
+            logger.warning(f"Could not ensure documents storage bucket: {str(e)}")
+
     def set_auth(self, access_token: str):
         """Set the JWT token for authentication"""
         if self.client and access_token:
@@ -260,11 +284,15 @@ class SupabaseClient:
                 .select('*') \
                 .eq('user_id', user_id) \
                 .eq('doc_id', doc_id) \
-                .order('trans_date', desc=False) \
                 .order('line_number', desc=False) \
                 .execute()
             return result.data or []
         except Exception as e:
+            message = str(e).lower()
+            # A normal PDF has no bank rows. A missing table should not break the page.
+            if any(token in message for token in ("pgrst205", "does not exist", "schema cache", "42p01")):
+                logger.warning(f"Transactions table is not available, returning none: {str(e)}")
+                return []
             logger.error(f"Failed to get transactions: {str(e)}")
             raise
 

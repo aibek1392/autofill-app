@@ -340,12 +340,24 @@ async def upload_documents(
         for file in files:
             logger.info(f"Processing file: {file.filename}, size: {file.size}, content_type: {file.content_type}")
             
-            # Validate file type
-            if not file.filename.lower().endswith(('.pdf', '.jpg', '.jpeg', '.png')):
+            # Validate file type by extension or content type
+            filename = (file.filename or "").strip()
+            extension = os.path.splitext(filename)[1].lower()
+            content_type = (file.content_type or "").split(";")[0].lower()
+            allowed_extensions = {".pdf", ".jpg", ".jpeg", ".png"}
+            allowed_types = {"application/pdf", "image/jpeg", "image/png", "image/jpg"}
+            if extension not in allowed_extensions and content_type not in allowed_types:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Unsupported file type: {file.filename}"
+                    detail=f"Unsupported file type: {filename or content_type or 'unknown'}. Use PDF, JPG, or PNG."
                 )
+            if not extension:
+                extension = {
+                    "application/pdf": ".pdf",
+                    "image/jpeg": ".jpg",
+                    "image/jpg": ".jpg",
+                    "image/png": ".png",
+                }.get(content_type, "")
             
             # Validate file size
             if file.size and file.size > settings.MAX_FILE_SIZE:
@@ -366,8 +378,7 @@ async def upload_documents(
             
             # Save file
             file_id = str(uuid.uuid4())
-            file_extension = os.path.splitext(file.filename)[1]
-            safe_filename = f"{file_id}{file_extension}"
+            safe_filename = f"{file_id}{extension}"
             file_path = os.path.join(settings.UPLOAD_DIR, safe_filename)
             
             try:
@@ -385,11 +396,14 @@ async def upload_documents(
                         with open(file_path, "rb") as f:
                             file_content = f.read()
                         
-                        # Upload to Supabase Storage
-                        upload_response = supabase_client.admin_client.storage.from_('documents').upload(
-                            file=file_content,
-                            path=safe_filename,
-                            file_options={"content-type": file.content_type or "application/octet-stream"}
+                        # Upload to Supabase Storage. Positional args match supabase-py 1.x.
+                        supabase_client.admin_client.storage.from_('documents').upload(
+                            safe_filename,
+                            file_content,
+                            {
+                                "content-type": file.content_type or "application/octet-stream",
+                                "upsert": "true",
+                            },
                         )
                         logger.info(f"File uploaded to Supabase Storage: {safe_filename}")
                         
