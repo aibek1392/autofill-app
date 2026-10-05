@@ -288,13 +288,9 @@ class SupabaseClient:
                 .execute()
             return result.data or []
         except Exception as e:
-            message = str(e).lower()
-            # A normal PDF has no bank rows. A missing table should not break the page.
-            if any(token in message for token in ("pgrst205", "does not exist", "schema cache", "42p01")):
-                logger.warning(f"Transactions table is not available, returning none: {str(e)}")
-                return []
-            logger.error(f"Failed to get transactions: {str(e)}")
-            raise
+            # A normal PDF has no bank rows. A missing table or query error should not break the page.
+            logger.warning(f"Transactions unavailable, returning none: {str(e)}")
+            return []
 
     # Chat History Methods
     async def create_chat_session(self, user_id: str, session_name: str = None) -> Dict[str, Any]:

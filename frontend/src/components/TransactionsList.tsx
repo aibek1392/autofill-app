@@ -36,14 +36,8 @@ const TransactionsList: React.FC<TransactionsListProps> = ({ docId, userId, clas
       })
 
       if (!response.ok) {
-        let detail = ''
-        try {
-          const body = await response.json()
-          detail = typeof body?.detail === 'string' ? body.detail : ''
-        } catch {
-          detail = ''
-        }
-        throw new Error(detail || `Failed to fetch transactions (${response.status})`)
+        setTransactions([])
+        return
       }
 
       const result = await response.json()
