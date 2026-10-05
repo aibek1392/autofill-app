@@ -94,6 +94,25 @@ export interface UserStats {
   recent_filled_forms: any[]
 }
 
+// The live API accepts a file only when the name ends in .pdf, .jpg, .jpeg, or .png.
+const withAcceptedName = (file: File): File => {
+  const name = (file.name || 'upload').trim()
+  const lower = name.toLowerCase()
+  if (['.pdf', '.jpg', '.jpeg', '.png'].some((ext) => lower.endsWith(ext))) {
+    return name === file.name ? file : new File([file], name, { type: file.type })
+  }
+  const type = (file.type || '').split(';')[0].toLowerCase()
+  const extension = type === 'application/pdf'
+    ? '.pdf'
+    : type === 'image/jpeg'
+      ? '.jpg'
+      : type === 'image/png'
+        ? '.png'
+        : ''
+  if (!extension) return file
+  return new File([file], `${name}${extension}`, { type: file.type || type })
+}
+
 // API functions
 export const uploadDocuments = async (files: FileList | File[]): Promise<{ files: UploadedFile[], total: number }> => {
   const formData = new FormData()
@@ -103,18 +122,20 @@ export const uploadDocuments = async (files: FileList | File[]): Promise<{ files
   
   fileArray.forEach((file, index) => {
     // Validate file before appending
-    if (!file || !file.name || file.size === undefined || file.size === null) {
+    if (!file || file.size === undefined || file.size === null) {
       console.error('Invalid file detected:', file)
       throw new Error(`Invalid file at index ${index}: ${file?.name || 'unnamed file'}`)
     }
+
+    const uploadFile = withAcceptedName(file)
     
     console.log(`Validating file ${index}:`, {
-      name: file.name,
-      size: file.size,
-      type: file.type
+      name: uploadFile.name,
+      size: uploadFile.size,
+      type: uploadFile.type
     })
     
-    formData.append('files', file)
+    formData.append('files', uploadFile)
   })
 
   // Get authenticated user ID
